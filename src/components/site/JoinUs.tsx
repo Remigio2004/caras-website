@@ -1,0 +1,349 @@
+import { useRef, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import joinImg from "../../assets/Recruitment.png";
+
+function isValidPhone(phone = "") {
+  return /^[0-9\-\+\(\) ]{7,}$/.test(phone.trim());
+}
+
+export default function JoinUs() {
+  const [loading, setLoading] = useState(false);
+  const [under18, setUnder18] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+
+    const data = new FormData(e.currentTarget);
+    const payload = Object.fromEntries(data.entries());
+
+    // --- VALIDATION ---
+    if (!under18) {
+      if (String(payload.name || "").trim().length < 2) {
+        toast({
+          title: "Invalid Name",
+          description: "Enter your name.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!payload.birthday || String(payload.birthday).length < 8) {
+        toast({
+          title: "Birthday Required",
+          description: "Please specify your birthday.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (isNaN(Number(payload.age)) || Number(payload.age) < 7) {
+        toast({
+          title: "Invalid Age",
+          description: "Applicants must be age 7 or above.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (String(payload.address || "").trim().length < 3) {
+        toast({
+          title: "Invalid Address",
+          description: "Enter your address.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!isValidPhone(String(payload.contact || ""))) {
+        toast({
+          title: "Invalid Contact",
+          description: "Enter a valid phone number.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!String(payload.guardian || "").trim()) {
+        toast({
+          title: "Guardian Name Required",
+          description: "Please provide your guardian's name.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!String(payload["fb-acc"] || "").trim()) {
+        toast({
+          title: "Facebook Account Required",
+          description: "Please enter your FB account.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (String(payload["child-name"] || "").trim().length < 2) {
+        toast({
+          title: "Invalid Child Name",
+          description: "Enter your child's name.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!payload.birthday || String(payload.birthday).length < 8) {
+        toast({
+          title: "Birthday Required",
+          description: "Please specify your child's birthday.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (
+        isNaN(Number(payload["child-age"])) ||
+        Number(payload["child-age"]) < 1
+      ) {
+        toast({
+          title: "Invalid Child Age",
+          description: "Child's age must be 1 or above.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (String(payload.address || "").trim().length < 3) {
+        toast({
+          title: "Invalid Address",
+          description: "Enter your address.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (String(payload["parent-name"] || "").trim().length < 2) {
+        toast({
+          title: "Invalid Parent Name",
+          description: "Enter parent's name.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!isValidPhone(String(payload["parent-phone"] || ""))) {
+        toast({
+          title: "Invalid Parent Phone",
+          description: "Enter a valid phone number.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!String(payload.guardian || "").trim()) {
+        toast({
+          title: "Guardian Name Required",
+          description: "Please provide the guardian's name.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (!String(payload["fb-acc"] || "").trim()) {
+        toast({
+          title: "Facebook Account Required",
+          description: "Please enter FB account.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
+    let result;
+    if (!under18) {
+      result = await supabase.from("adult_applications").insert([
+        {
+          name: payload.name,
+          birthday: payload.birthday, // must be type date/text in DB
+          age: Number(payload.age),
+          address: payload.address,
+          contact: payload.contact,
+          guardian: payload.guardian,
+          fb_acc: payload["fb-acc"],
+          message: payload.message || "",
+        },
+      ]);
+    } else {
+      result = await supabase.from("parent_applications").insert([
+        {
+          child_name: payload["child-name"],
+          birthday: payload.birthday, // must be in parent_applications DB as date/text
+          child_age: Number(payload["child-age"]),
+          address: payload.address,
+          parent_name: payload["parent-name"],
+          parent_phone: payload["parent-phone"],
+          guardian: payload.guardian,
+          fb_acc: payload["fb-acc"],
+          message: payload.message || "",
+        },
+      ]);
+    }
+
+    if (result.error) {
+      toast({
+        title: "Submission Failed",
+        description: result.error.message,
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    } else {
+      toast({
+        title: "Application Submitted",
+        description: "Thank you! We will contact you soon.",
+      });
+      setLoading(false);
+      setTimeout(() => {
+        formRef.current?.reset();
+        setUnder18(false);
+      }, 800);
+    }
+  }
+
+  return (
+    <section id="join" className="py-20 bg-neutral-50 min-h-[100vh]">
+      <div className="container mx-auto px-[4-rem] grid md:grid-cols-2 gap-10 items-center">
+        {/* IMAGE */}
+        <div className="relative order-1 md:order-2 block">
+          <div className="rounded-lg overflow-hidden bg-gradient-emerald shadow-elegant">
+            <img
+              className="rounded-2xl px-2 py-2 w-full h-auto object-cover"
+              src={joinImg}
+              alt="join-us-photo"
+            />
+          </div>
+          <div className="absolute -bottom-6 -left-6 w-40 h-40 rounded-full bg-gradient-altar opacity-80 shadow-glow hidden md:block" />
+        </div>
+        {/* FORM */}
+        <div className="order-2 md:order-1">
+          <h2 className="text-3xl md:text-4xl font-display">Join Us</h2>
+          <p className="mt-2 text-muted-foreground max-w-xl text-justify">
+            {under18
+              ? "This form is for applicants under 18 and requires a parent or guardian to fill out the information."
+              : "Fill out the form below. Applicants should be committed to formation and regular attendance."}
+          </p>
+          <form
+            ref={formRef}
+            onSubmit={onSubmit}
+            className="mt-6 grid gap-4 max-w-xl"
+          >
+            {!under18 && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm">Name</label>
+                    <Input name="name" required />
+                  </div>
+                  <div>
+                    <label className="text-sm">Birthday</label>
+                    <Input name="birthday" type="date" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm">Age</label>
+                    <Input name="age" type="number" min={7} required />
+                  </div>
+                  <div>
+                    <label className="text-sm">Guardian's Name</label>
+                    <Input name="guardian" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm">Address</label>
+                  <Input name="address" required />
+                </div>
+                <div>
+                  <label className="text-sm">Contact</label>
+                  <Input name="contact" type="tel" required />
+                </div>
+                <div>
+                  <label className="text-sm">Facebook Account</label>
+                  <Input name="fb-acc" required />
+                </div>
+                <div>
+                  <label className="text-sm">Short Message</label>
+                  <Textarea name="message" rows={3} />
+                </div>
+              </>
+            )}
+            {under18 && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm">Child’s Name</label>
+                    <Input name="child-name" required />
+                  </div>
+                  <div>
+                    <label className="text-sm">Birthday</label>
+                    <Input name="birthday" type="date" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm">Child’s Age</label>
+                    <Input name="child-age" type="number" min={1} required />
+                  </div>
+                  <div>
+                    <label className="text-sm">Guardian's Name</label>
+                    <Input name="guardian" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm">Address</label>
+                  <Input name="address" required />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm">Parent’s Name</label>
+                    <Input name="parent-name" required />
+                  </div>
+                  <div>
+                    <label className="text-sm">Parent’s Phone #</label>
+                    <Input name="parent-phone" type="tel" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm">Facebook Account</label>
+                  <Input name="fb-acc" required />
+                </div>
+                <div>
+                  <label className="text-sm">Short Message</label>
+                  <Textarea name="message" rows={3} />
+                </div>
+              </>
+            )}
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" variant="gold" disabled={loading}>
+                {loading ? "Submitting..." : "Submit"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUnder18(!under18)}
+              >
+                {under18 ? "18 and Above Form" : "Under 18?"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+}
