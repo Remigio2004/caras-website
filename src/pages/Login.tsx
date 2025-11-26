@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth"; // adjust if path is different
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,15 +15,14 @@ export default function Login() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // Temporary local authentication placeholder
-    if (email && password) {
-      login(email);
+    try {
+      await login(email, password);
       toast({ title: "Welcome back" });
       navigate("/dashboard");
-    } else {
+    } catch (err: any) {
       toast({
         title: "Login failed",
-        description: "Please enter valid credentials.",
+        description: err.message,
         variant: "destructive",
       });
     }
