@@ -3,18 +3,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth"; // adjust if path is different
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    if (submitting) return;
+    setSubmitting(true);
     try {
       await login(email, password);
       toast({ title: "Welcome back" });
@@ -26,7 +27,7 @@ export default function Login() {
         variant: "destructive",
       });
     }
-    setLoading(false);
+    setSubmitting(false);
   }
 
   function onReset() {
@@ -67,8 +68,8 @@ export default function Login() {
               required
             />
           </div>
-          <Button type="submit" variant="gold" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+          <Button type="submit" variant="gold" disabled={submitting}>
+            {submitting ? "Signing in..." : "Sign In"}
           </Button>
           <button type="button" onClick={onReset} className="text-sm underline">
             Forgot password?

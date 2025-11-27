@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StatsCard from "@/components/dashboard/StatsCard";
-// import PendingApplicationsTable from "@/components/dashboard/PendingApplicationsTable";
 import ApplicationsView from "@/components/dashboard/ApplicationsView";
 import MembersView from "@/components/dashboard/MembersView";
 import EventsView from "@/components/dashboard/EventsView";
@@ -23,10 +22,23 @@ export default function Dashboard() {
   useInactivityLogout(!!user, 30 * 60 * 1000, () => navigate("/login"));
 
   useEffect(() => {
-    if (!loading && !user) navigate("/login");
+    if (!loading && !user) {
+      navigate("/login");
+    }
   }, [user, loading, navigate]);
 
-  if (!user) return null;
+  // habang naglo-load pa, show loader para hindi ka ma-null
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // dito na lang as fallback, dapat na-redirect ka na sa useEffect
+  }
 
   const renderView = () => {
     switch (view) {
@@ -46,7 +58,9 @@ export default function Dashboard() {
             {/* Header */}
             <div className="space-y-1">
               <h1 className="text-3xl font-display font-bold">Welcome back!</h1>
-              <p className="text-muted-foreground">{user.email} • Admin</p>
+              <p className="text-muted-foreground">
+                {user.email} • {user.role || "Admin"}
+              </p>
             </div>
 
             {/* Stats Cards */}
@@ -69,10 +83,8 @@ export default function Dashboard() {
                 icon={FileText}
                 description="Awaiting review"
               />
-            </div>
-
-            {/* Pending Applications Table */}
-            {/* <div className="space-y-4">
+              {/* Pending Applications Table */}
+              {/* <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-display font-semibold">
                   Pending Application Requests
@@ -80,6 +92,7 @@ export default function Dashboard() {
               </div>
               <PendingApplicationsTable />
             </div> */}
+            </div>
           </>
         );
     }
