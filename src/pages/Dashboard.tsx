@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import StatsCard from "@/components/dashboard/StatsCard";
-import PendingApplicationsTable from "@/components/dashboard/PendingApplicationsTable";
+// import PendingApplicationsTable from "@/components/dashboard/PendingApplicationsTable";
 import ApplicationsView from "@/components/dashboard/ApplicationsView";
 import MembersView from "@/components/dashboard/MembersView";
 import EventsView from "@/components/dashboard/EventsView";
@@ -72,14 +72,14 @@ export default function Dashboard() {
             </div>
 
             {/* Pending Applications Table */}
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-display font-semibold">
                   Pending Application Requests
                 </h2>
               </div>
               <PendingApplicationsTable />
-            </div>
+            </div> */}
           </>
         );
     }

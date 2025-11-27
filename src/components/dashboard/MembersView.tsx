@@ -2,15 +2,27 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Mail, Phone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Search, Phone, Download } from "lucide-react";
+import { format } from "date-fns";
 
 interface Member {
   id: string;
-  name: string;
+  full_name: string;
+  birthday: string;
   age: number;
-  contact: string;
+  address: string;
+  guardian: string;
+  contact_number: string;
+  batch: string | null;
   created_at: string;
 }
 
@@ -21,9 +33,8 @@ export default function MembersView() {
     queryKey: ["members"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("membership_applications")
+        .from("members")
         .select("*")
-        .eq("status", "approved")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -31,59 +42,126 @@ export default function MembersView() {
     },
   });
 
-  const filteredMembers = members?.filter((member) =>
-    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.contact.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMembers =
+    members?.filter((member) => {
+      const term = searchTerm.toLowerCase();
+      return (
+        member.full_name.toLowerCase().includes(term) ||
+        member.contact_number.toLowerCase().includes(term) ||
+        (member.batch || "").toLowerCase().includes(term)
+      );
+    }) || [];
+
+  const exportToCSV = () => {
+    if (!filteredMembers || filteredMembers.length === 0) return;
+
+    const headers = [
+      "Full Name",
+      "Birthday",
+      "Age",
+      "Address",
+      "Guardian",
+      "Contact Number",
+      "Batch",
+      "Joined",
+    ];
+
+    const rows = filteredMembers.map((m) => [
+      m.full_name,
+      m.birthday,
+      m.age,
+      m.address,
+      m.guardian,
+      m.contact_number,
+      m.batch || "",
+      format(new Date(m.created_at), "yyyy-MM-dd"),
+    ]);
+
+    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `members-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-semibold">Members</h2>
-        <p className="text-muted-foreground">
-          {filteredMembers?.length || 0} total members
-        </p>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Search members..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Members</h2>
+          <p className="text-sm text-muted-foreground">
+            {filteredMembers.length} total members
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, contact, batch..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Button variant="outline" onClick={exportToCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="text-center py-8">Loading members...</div>
-      ) : !filteredMembers || filteredMembers.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <p className="text-muted-foreground">No members found</p>
+      ) : filteredMembers.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No members found
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredMembers.map((member) => (
-            <Card key={member.id} className="p-6 hover:border-accent transition-colors">
-              <div className="flex items-start gap-4">
-                <Avatar className="w-12 h-12 bg-accent">
-                  <AvatarFallback className="bg-accent text-accent-foreground font-semibold">
-                    {member.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-lg truncate">{member.name}</h3>
-                  <p className="text-sm text-muted-foreground">Age: {member.age}</p>
-                  <div className="mt-3 space-y-1">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="w-3 h-3" />
-                      <span className="truncate">{member.contact}</span>
+        <div className="border rounded-lg overflow-hidden bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Full Name</TableHead>
+                <TableHead>Age</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Batch</TableHead>
+                <TableHead>Address</TableHead>
+                <TableHead>Guardian</TableHead>
+                <TableHead>Joined</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMembers.map((member) => (
+                <TableRow key={member.id}>
+                  <TableCell className="font-medium flex items-center gap-2">
+                    <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                      {member.full_name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()}
                     </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
+                    {member.full_name}
+                  </TableCell>
+                  <TableCell>{member.age}</TableCell>
+                  <TableCell className="flex items-center gap-1">
+                    <Phone className="w-4 h-4" />
+                    {member.contact_number}
+                  </TableCell>
+                  <TableCell>{member.batch || "N/A"}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">
+                    {member.address}
+                  </TableCell>
+                  <TableCell>{member.guardian}</TableCell>
+                  <TableCell>
+                    {new Date(member.created_at).toLocaleDateString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

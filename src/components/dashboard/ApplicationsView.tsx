@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -23,28 +23,55 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, Check, X, Search, Download } from "lucide-react";
 import { format } from "date-fns";
 
-interface Application {
+interface AdultApplication {
   id: string;
   name: string;
   age: number;
+  address: string;
   contact: string;
+  fb_acc: string;
   message: string | null;
-  created_at: string;
   status: string;
+  created_at: string;
+  birthday: string;
+  guardian: string;
+  type: "adult";
 }
+
+interface ParentApplication {
+  id: string;
+  child_name: string;
+  child_age: number;
+  address: string;
+  parent_name: string;
+  parent_phone: string;
+  fb_acc: string;
+  message: string | null;
+  status: string;
+  created_at: string;
+  birthday: string;
+  guardian: string;
+  type: "parent";
+}
+
+type Application = AdultApplication | ParentApplication;
 
 export default function ApplicationsView() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "adult" | "parent">(
+    "all"
+  );
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: applications, isLoading } = useQuery({
-    queryKey: ["applications", statusFilter],
+  // ADULT APPLICATIONS
+  const { data: adultApps, isLoading: loadingAdult } = useQuery({
+    queryKey: ["adult-applications", statusFilter],
     queryFn: async () => {
       let query = supabase
-        .from("membership_applications")
+        .from("adult_applications")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -54,35 +81,140 @@ export default function ApplicationsView() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Application[];
+      return (data || []).map((d) => ({ ...d, type: "adult" as const }));
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("membership_applications")
-        .update({ status })
-        .eq("id", id);
+  // PARENT APPLICATIONS
+  const { data: parentApps, isLoading: loadingParent } = useQuery({
+    queryKey: ["parent-applications", statusFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("parent_applications")
+        .select("*")
+        .order("created_at", { ascending: false });
 
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
+      return (data || []).map((d) => ({ ...d, type: "parent" as const }));
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
+  });
+
+  const allApplications: Application[] = [
+    ...(adultApps || []),
+    ...(parentApps || []),
+  ].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  // APPROVE (update status + insert to members)
+  const acceptMutation = useMutation({
+    mutationFn: async (app: Application) => {
+      const table =
+        app.type === "adult" ? "adult_applications" : "parent_applications";
+
+      const { error: updateError } = await supabase
+        .from(table)
+        .update({ status: "approved" })
+        .eq("id", app.id);
+      if (updateError) throw updateError;
+
+      const memberData =
+        app.type === "adult"
+          ? {
+              full_name: app.name,
+              birthday: app.birthday,
+              age: app.age,
+              address: app.address,
+              guardian: app.guardian,
+              contact_number: app.contact,
+              batch: "Batch 1",
+              created_at: new Date().toISOString(),
+            }
+          : {
+              full_name: (app as ParentApplication).child_name,
+              birthday: (app as ParentApplication).birthday,
+              age: (app as ParentApplication).child_age,
+              address: (app as ParentApplication).address,
+              guardian: (app as ParentApplication).guardian,
+              contact_number: (app as ParentApplication).parent_phone,
+              batch: "Batch 1",
+              created_at: new Date().toISOString(),
+            };
+
+      const { error: insertError } = await supabase
+        .from("members")
+        .insert([memberData]);
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adult-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["parent-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({
         title: "Success",
-        description: `Application ${variables.status}`,
+        description: "Application approved and member added.",
       });
       setSelectedApp(null);
     },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to approve application.",
+        variant: "destructive",
+      });
+    },
   });
 
-  const filteredApplications = applications?.filter(
-    (app) =>
-      app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.contact.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // REJECT
+  const rejectMutation = useMutation({
+    mutationFn: async (app: Application) => {
+      const table =
+        app.type === "adult" ? "adult_applications" : "parent_applications";
+
+      const { error } = await supabase
+        .from(table)
+        .update({ status: "rejected" })
+        .eq("id", app.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adult-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["parent-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast({ title: "Success", description: "Application rejected" });
+      setSelectedApp(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to reject application",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredApplications = allApplications.filter((app) => {
+    const matchesType = typeFilter === "all" || app.type === typeFilter;
+    const name =
+      app.type === "adult" ? app.name : (app as ParentApplication).child_name;
+    const contact =
+      app.type === "adult"
+        ? app.contact
+        : (app as ParentApplication).parent_phone;
+
+    const matchesSearch =
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.toLowerCase().includes(searchTerm.toLowerCase());
+
+    return matchesType && matchesSearch;
+  });
 
   const exportToCSV = () => {
     if (!filteredApplications || filteredApplications.length === 0) return;
@@ -91,17 +223,20 @@ export default function ApplicationsView() {
       "Name",
       "Age",
       "Contact",
+      "Type",
       "Status",
       "Date Submitted",
-      "Message",
     ];
+
     const rows = filteredApplications.map((app) => [
-      app.name,
-      app.age,
-      app.contact,
+      app.type === "adult" ? app.name : (app as ParentApplication).child_name,
+      app.type === "adult" ? app.age : (app as ParentApplication).child_age,
+      app.type === "adult"
+        ? app.contact
+        : (app as ParentApplication).parent_phone,
+      app.type,
       app.status,
       format(new Date(app.created_at), "yyyy-MM-dd"),
-      app.message || "",
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -113,127 +248,131 @@ export default function ApplicationsView() {
     a.click();
   };
 
+  const isLoading = loadingAdult || loadingParent;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-semibold">
-          Membership Applications
-        </h2>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold">Membership Applications</h2>
         <Button onClick={exportToCSV} variant="outline">
           <Download className="w-4 h-4 mr-2" />
           Export CSV
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or contact..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      <div className="mb-4 relative">
+        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by name or contact..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
-      <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+      <Tabs
+        value={statusFilter}
+        onValueChange={setStatusFilter}
+        className="mb-4"
+      >
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
-
-        <TabsContent value={statusFilter} className="mt-6">
-          {isLoading ? (
-            <div className="text-center py-8">Loading...</div>
-          ) : !filteredApplications || filteredApplications.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-              <p className="text-muted-foreground">No applications found</p>
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Age</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date Submitted</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredApplications.map((app) => (
-                    <TableRow key={app.id}>
-                      <TableCell className="font-medium">{app.name}</TableCell>
-                      <TableCell>{app.age}</TableCell>
-                      <TableCell>{app.contact}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            app.status === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : app.status === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {app.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(app.created_at), "MMM dd, yyyy")}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedApp(app)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        {app.status === "pending" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-green-600 hover:text-green-700"
-                              onClick={() =>
-                                updateStatusMutation.mutate({
-                                  id: app.id,
-                                  status: "approved",
-                                })
-                              }
-                            >
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive"
-                              onClick={() =>
-                                updateStatusMutation.mutate({
-                                  id: app.id,
-                                  status: "rejected",
-                                })
-                              }
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
       </Tabs>
+
+      <Tabs
+        value={typeFilter}
+        onValueChange={(v) => setTypeFilter(v as any)}
+        className="mb-4"
+      >
+        <TabsList>
+          <TabsTrigger value="all">All Types</TabsTrigger>
+          <TabsTrigger value="adult">Adult</TabsTrigger>
+          <TabsTrigger value="parent">Parent</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {isLoading ? (
+        <div className="text-center py-8">Loading...</div>
+      ) : !filteredApplications || filteredApplications.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No applications found
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Age</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Date Submitted</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredApplications.map((app) => (
+              <TableRow key={`${app.type}-${app.id}`}>
+                <TableCell>
+                  {app.type === "adult"
+                    ? app.name
+                    : (app as ParentApplication).child_name}
+                </TableCell>
+                <TableCell>
+                  {app.type === "adult"
+                    ? app.age
+                    : (app as ParentApplication).child_age}
+                </TableCell>
+                <TableCell>
+                  {app.type === "adult"
+                    ? app.contact
+                    : (app as ParentApplication).parent_phone}
+                </TableCell>
+                <TableCell className="capitalize">{app.type}</TableCell>
+                <TableCell className="capitalize">{app.status}</TableCell>
+                <TableCell>
+                  {format(new Date(app.created_at), "MMM dd, yyyy")}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedApp(app)}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    {app.status === "pending" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-green-600"
+                          onClick={() => acceptMutation.mutate(app)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600"
+                          onClick={() => rejectMutation.mutate(app)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
         <DialogContent>
@@ -244,58 +383,65 @@ export default function ApplicationsView() {
           {selectedApp && (
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Name</label>
-                <p className="text-sm text-muted-foreground">
-                  {selectedApp.name}
+                <label className="font-semibold">Name</label>
+                <p>
+                  {selectedApp.type === "adult"
+                    ? selectedApp.name
+                    : (selectedApp as ParentApplication).child_name}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium">Age</label>
-                <p className="text-sm text-muted-foreground">
-                  {selectedApp.age}
+                <label className="font-semibold">Age</label>
+                <p>
+                  {selectedApp.type === "adult"
+                    ? selectedApp.age
+                    : (selectedApp as ParentApplication).child_age}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium">Contact</label>
-                <p className="text-sm text-muted-foreground">
-                  {selectedApp.contact}
+                <label className="font-semibold">Contact</label>
+                <p>
+                  {selectedApp.type === "adult"
+                    ? selectedApp.contact
+                    : (selectedApp as ParentApplication).parent_phone}
                 </p>
               </div>
+              {selectedApp.type === "parent" && (
+                <div>
+                  <label className="font-semibold">Parent Name</label>
+                  <p>{(selectedApp as ParentApplication).parent_name}</p>
+                </div>
+              )}
               <div>
-                <label className="text-sm font-medium">Status</label>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {selectedApp.status}
-                </p>
+                <label className="font-semibold">Address</label>
+                <p>{selectedApp.address}</p>
               </div>
               <div>
-                <label className="text-sm font-medium">Message</label>
-                <p className="text-sm text-muted-foreground">
-                  {selectedApp.message || "No message"}
-                </p>
+                <label className="font-semibold">Facebook Account</label>
+                <p>{selectedApp.fb_acc || "N/A"}</p>
+              </div>
+              <div>
+                <label className="font-semibold">Status</label>
+                <p className="capitalize">{selectedApp.status}</p>
+              </div>
+              <div>
+                <label className="font-semibold">Message</label>
+                <p>{selectedApp.message || "No message"}</p>
               </div>
               {selectedApp.status === "pending" && (
-                <div className="flex gap-2 pt-4">
+                <div className="flex gap-2">
                   <Button
-                    className="flex-1"
-                    onClick={() =>
-                      updateStatusMutation.mutate({
-                        id: selectedApp.id,
-                        status: "approved",
-                      })
-                    }
+                    variant="default"
+                    onClick={() => acceptMutation.mutate(selectedApp)}
                   >
+                    <Check className="w-4 h-4 mr-2" />
                     Approve
                   </Button>
                   <Button
                     variant="destructive"
-                    className="flex-1"
-                    onClick={() =>
-                      updateStatusMutation.mutate({
-                        id: selectedApp.id,
-                        status: "rejected",
-                      })
-                    }
+                    onClick={() => rejectMutation.mutate(selectedApp)}
                   >
+                    <X className="w-4 h-4 mr-2" />
                     Reject
                   </Button>
                 </div>

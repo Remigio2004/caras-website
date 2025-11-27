@@ -31,6 +31,54 @@ interface Application {
   status: string;
 }
 
+// Utility: merge adult + parent pending into a flat shape
+async function fetchPendingApplications(): Promise<Application[]> {
+  // adult_applications
+  const { data: adultData, error: adultError } = await supabase
+    .from("adult_applications")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (adultError) throw adultError;
+
+  // parent_applications
+  const { data: parentData, error: parentError } = await supabase
+    .from("parent_applications")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (parentError) throw parentError;
+
+  const adults: Application[] = (adultData || []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    age: a.age,
+    contact: a.contact,
+    message: a.message,
+    created_at: a.created_at,
+    status: a.status,
+  }));
+
+  const parents: Application[] = (parentData || []).map((p) => ({
+    id: p.id,
+    name: p.child_name,
+    age: p.child_age,
+    contact: p.parent_phone,
+    message: p.message,
+    created_at: p.created_at,
+    status: p.status,
+  }));
+
+  return [...adults, ...parents].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+}
+
 export default function PendingApplicationsTable() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const { toast } = useToast();
@@ -38,30 +86,32 @@ export default function PendingApplicationsTable() {
 
   const { data: applications, isLoading } = useQuery({
     queryKey: ["pending-applications"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("membership_applications")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return data as Application[];
-    },
+    queryFn: fetchPendingApplications,
   });
 
+  // Simple status update on both tables (try adult, then parent)
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("membership_applications")
+      // try adult_applications
+      let { error } = await supabase
+        .from("adult_applications")
         .update({ status })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        // if not found in adult, try parent_applications
+        const { error: parentError } = await supabase
+          .from("parent_applications")
+          .update({ status })
+          .eq("id", id);
+
+        if (parentError) throw parentError;
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pending-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["adult-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["parent-applications"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({
         title: "Success",
