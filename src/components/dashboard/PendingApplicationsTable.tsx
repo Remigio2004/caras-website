@@ -29,11 +29,11 @@ interface Application {
   message: string | null;
   created_at: string;
   status: string;
+  source: "adult" | "parent";
 }
 
-// Utility: merge adult + parent pending into a flat shape
+// merge adult + parent pending into a flat list with source info
 async function fetchPendingApplications(): Promise<Application[]> {
-  // adult_applications
   const { data: adultData, error: adultError } = await supabase
     .from("adult_applications")
     .select("*")
@@ -43,7 +43,6 @@ async function fetchPendingApplications(): Promise<Application[]> {
 
   if (adultError) throw adultError;
 
-  // parent_applications
   const { data: parentData, error: parentError } = await supabase
     .from("parent_applications")
     .select("*")
@@ -61,6 +60,7 @@ async function fetchPendingApplications(): Promise<Application[]> {
     message: a.message,
     created_at: a.created_at,
     status: a.status,
+    source: "adult" as const,
   }));
 
   const parents: Application[] = (parentData || []).map((p) => ({
@@ -71,6 +71,7 @@ async function fetchPendingApplications(): Promise<Application[]> {
     message: p.message,
     created_at: p.created_at,
     status: p.status,
+    source: "parent" as const,
   }));
 
   return [...adults, ...parents].sort(
@@ -89,24 +90,26 @@ export default function PendingApplicationsTable() {
     queryFn: fetchPendingApplications,
   });
 
-  // Simple status update on both tables (try adult, then parent)
+  // admin-controlled status update
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      // try adult_applications
-      let { error } = await supabase
-        .from("adult_applications")
+    mutationFn: async ({
+      id,
+      status,
+      source,
+    }: {
+      id: string;
+      status: "approved" | "rejected";
+      source: "adult" | "parent";
+    }) => {
+      const table =
+        source === "adult" ? "adult_applications" : "parent_applications";
+
+      const { error } = await supabase
+        .from(table)
         .update({ status })
         .eq("id", id);
 
-      if (error) {
-        // if not found in adult, try parent_applications
-        const { error: parentError } = await supabase
-          .from("parent_applications")
-          .update({ status })
-          .eq("id", id);
-
-        if (parentError) throw parentError;
-      }
+      if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pending-applications"] });
@@ -146,6 +149,14 @@ export default function PendingApplicationsTable() {
     );
   }
 
+  const handleUpdate = (app: Application, status: "approved" | "rejected") => {
+    updateStatusMutation.mutate({
+      id: app.id,
+      status,
+      source: app.source,
+    });
+  };
+
   return (
     <>
       <div className="border rounded-lg overflow-hidden bg-card">
@@ -161,7 +172,7 @@ export default function PendingApplicationsTable() {
           </TableHeader>
           <TableBody>
             {applications.map((app) => (
-              <TableRow key={app.id}>
+              <TableRow key={`${app.source}-${app.id}`}>
                 <TableCell className="font-medium">{app.name}</TableCell>
                 <TableCell>{app.contact}</TableCell>
                 <TableCell>{app.age}</TableCell>
@@ -180,12 +191,7 @@ export default function PendingApplicationsTable() {
                     variant="ghost"
                     size="sm"
                     className="text-green-600 hover:text-green-700"
-                    onClick={() =>
-                      updateStatusMutation.mutate({
-                        id: app.id,
-                        status: "approved",
-                      })
-                    }
+                    onClick={() => handleUpdate(app, "approved")}
                   >
                     <Check className="w-4 h-4" />
                   </Button>
@@ -193,12 +199,7 @@ export default function PendingApplicationsTable() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() =>
-                      updateStatusMutation.mutate({
-                        id: app.id,
-                        status: "rejected",
-                      })
-                    }
+                    onClick={() => handleUpdate(app, "rejected")}
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -244,24 +245,14 @@ export default function PendingApplicationsTable() {
               <div className="flex gap-2 pt-4">
                 <Button
                   className="flex-1"
-                  onClick={() =>
-                    updateStatusMutation.mutate({
-                      id: selectedApp.id,
-                      status: "approved",
-                    })
-                  }
+                  onClick={() => handleUpdate(selectedApp, "approved")}
                 >
                   Approve
                 </Button>
                 <Button
                   variant="destructive"
                   className="flex-1"
-                  onClick={() =>
-                    updateStatusMutation.mutate({
-                      id: selectedApp.id,
-                      status: "rejected",
-                    })
-                  }
+                  onClick={() => handleUpdate(selectedApp, "rejected")}
                 >
                   Reject
                 </Button>
