@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import carasLogo from "@/assets/caras-logo.png";
 
 const navItems = [
   {
@@ -82,20 +83,39 @@ export default function DashboardSidebar() {
       {/* Header */}
       <div className="p-4 border-b border-primary-foreground/20">
         {!collapsed && (
-          <div className="animate-fade-in">
-            <h1 className="font-display text-xl font-bold text-accent">
-              CARAS
-            </h1>
-            <p className="text-xs text-primary-foreground/70">Admin Panel</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="animate-fade-in flex items-center gap-2 w-full text-left focus:outline-none"
+          >
+            <div className="w-10 h-10 rounded-full bg-accent overflow-hidden flex items-center justify-center">
+              <img
+                src={carasLogo}
+                alt="logo"
+                className="w-9 h-9 object-contain"
+              />
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-bold text-accent">
+                CARAS
+              </h1>
+              <p className="text-xs text-primary-foreground/70">Admin Panel</p>
+            </div>
+          </button>
         )}
         {collapsed && (
           <div className="flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-              <span className="font-display font-bold text-primary text-sm">
-                C
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="w-8 h-8 rounded-full bg-accent flex items-center justify-center overflow-hidden focus:outline-none"
+            >
+              <img
+                src={carasLogo}
+                alt="logo"
+                className="w-7 h-7 object-contain"
+              />
+            </button>
           </div>
         )}
       </div>
