@@ -430,7 +430,7 @@ export default function ApplicationsView() {
                         {format(new Date(app.created_at), "MMM dd, yyyy")}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1 sm:gap-2">
+                        <div className="flex gap-1 sm:gap-2 flex-wrap">
                           <Button
                             size="icon"
                             variant="ghost"
@@ -507,16 +507,18 @@ export default function ApplicationsView() {
                       ? app.name
                       : (app as ParentApplication).child_name}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Age:{" "}
-                    {app.type === "adult"
-                      ? app.age
-                      : (app as ParentApplication).child_age}
-                  </div>
                 </div>
 
                 {/* Contact + meta */}
                 <div className="text-xs space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Age</span>
+                    <span className="font-medium">
+                      {app.type === "adult"
+                        ? app.age
+                        : (app as ParentApplication).child_age}
+                    </span>
+                  </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Contact</span>
                     <span className="font-medium">
@@ -551,7 +553,6 @@ export default function ApplicationsView() {
                         onClick={() => rejectMutation.mutate(app)}
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Reject
                       </Button>
                       <Button
                         size="sm"
@@ -559,7 +560,6 @@ export default function ApplicationsView() {
                         onClick={() => acceptMutation.mutate(app)}
                       >
                         <Check className="w-4 h-4 mr-1" />
-                        Approve
                       </Button>
                     </>
                   )}
@@ -575,14 +575,15 @@ export default function ApplicationsView() {
                       Remove from members
                     </Button>
                   )}
+                </div>
+                <div className="w-full">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1 min-w-[80px]"
+                    className="w-full flex items-center justify-center"
                     onClick={() => setSelectedApp(app)}
                   >
                     <Eye className="w-4 h-4 mr-1" />
-                    View
                   </Button>
                 </div>
               </div>
