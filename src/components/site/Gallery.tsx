@@ -7,22 +7,18 @@ const images = Object.entries(
   })
 ).map(([path, file]: any) => {
   const parts = path.split("/");
-  const category = parts[parts.length - 2];
   const fullFileName = parts[parts.length - 1];
   const fileName = fullFileName.replace(/\.[^/.]+$/, "");
 
   return {
     src: file.default,
-    category,
     filename: fileName,
   };
 });
 
-const cats = ["All", "Mass", "Procession", "Parish", "Devotion"] as const;
 const PAGE_SIZE = 12;
 
 export default function Gallery() {
-  const [filter, setFilter] = useState<(typeof cats)[number]>("All");
   const [page, setPage] = useState(0);
 
   const scrollToGallery = () => {
@@ -31,23 +27,12 @@ export default function Gallery() {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const filtered = images.filter(
-    (i) => filter === "All" || i.category === filter
-  );
+  const totalPages = Math.max(1, Math.ceil(images.length / PAGE_SIZE));
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-
-  const pageImages = filtered.slice(
+  const pageImages = images.slice(
     page * PAGE_SIZE,
     page * PAGE_SIZE + PAGE_SIZE
   );
-
-  const handleFilterClick = (c: (typeof cats)[number]) => {
-    setFilter(c);
-    setPage(0);
-
-    setTimeout(scrollToGallery, 50);
-  };
 
   const handlePrevClick = () => {
     setPage((p) => Math.max(p - 1, 0));
@@ -62,26 +47,13 @@ export default function Gallery() {
   return (
     <section id="gallery" className="py-20 overflow-y-hidden">
       <div className="container">
-        {/* Title + Filter */}
+        {/* Title only */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-3xl font-display">Gallery</h2>
-          <div className="flex gap-2">
-            {cats.map((c) => (
-              <button
-                key={c}
-                onClick={() => handleFilterClick(c)}
-                className={`px-3 py-1 rounded-md border transition ${
-                  filter === c ? "bg-accent/20 border-accent" : "hover:bg-muted"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Images */}
-        <div className="mt-8 columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
+        <div className="mt-6 columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
           <div className="grid gap-4">
             {pageImages.map((img, index) => (
               <Dialog key={index}>
