@@ -9,46 +9,28 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth"; // adjust path if different
 
 interface GalleryImage {
   id?: string;
   image_url: string;
-  alt_text: string;
-  category?: string;
+  alt_text: string; // description
+  name?: string; // image name field
   created_at?: string;
 }
 
-// local images same as public Gallery
-const localImages = Object.entries(
-  import.meta.glob("/src/assets/gallery/**/*.{jpg,jpeg,png}", {
-    eager: true,
-  })
-).map(([path, file]: any) => {
-  const parts = path.split("/");
-  const fullFileName = parts[parts.length - 1];
-  const fileName = fullFileName.replace(/\.[^/.]+$/, "");
-
-  return {
-    image_url: file.default as string,
-    alt_text: fileName,
-  } satisfies GalleryImage;
-});
-
-const categories = ["Liturgy", "Community", "Youth", "Special Events"];
 const PAGE_SIZE = 6;
+const BUCKET = "gallery";
 
 export default function GalleryView() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [page, setPage] = useState(0);
   const { toast } = useToast();
@@ -68,13 +50,37 @@ export default function GalleryView() {
 
   const createImageMutation = useMutation({
     mutationFn: async (formData: FormData) => {
+      if (!isAdmin) throw new Error("Not authorized");
+
+      const file = formData.get("file") as File | null;
+      const name = (formData.get("file_name") as string) || "image";
+      const description = (formData.get("description") as string) || name;
+
+      if (!file) throw new Error("No file provided");
+
+      const ext = file.name.split(".").pop();
+      const safeName = name.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const path = `uploads/${Date.now()}-${safeName}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
       const imageData = {
-        image_url: formData.get("image_url") as string,
-        alt_text: formData.get("alt_text") as string,
-        category: formData.get("category") as string,
+        image_url: publicUrl,
+        alt_text: description, // description
+        name, // image name field
       };
-      const { error } = await supabase.from("gallery").insert(imageData);
-      if (error) throw error;
+
+      const { error: insertError } = await supabase
+        .from("gallery")
+        .insert(imageData);
+      if (insertError) throw insertError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gallery"] });
@@ -82,10 +88,20 @@ export default function GalleryView() {
       setIsDialogOpen(false);
       setPage(0);
     },
+    onError: (err) => {
+      console.error("createImage error:", err);
+      toast({
+        title: "Upload failed",
+        description: String(err),
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteImageMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error("Not authorized");
+
       const { error } = await supabase.from("gallery").delete().eq("id", id);
       if (error) throw error;
     },
@@ -97,15 +113,25 @@ export default function GalleryView() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isAdmin) {
+      toast({
+        title: "Not allowed",
+        description: "Only admins can upload images.",
+        variant: "destructive",
+      });
+      return;
+    }
     const formData = new FormData(e.currentTarget);
     createImageMutation.mutate(formData);
   };
 
-  // combine local + db
-  const allImages = useMemo(
-    () => [...localImages, ...(dbImages || [])],
-    [dbImages]
-  );
+  const allImages = useMemo(() => {
+    const combined = dbImages || [];
+    return combined
+      .map((img) => ({ img, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ img }) => img) as GalleryImage[];
+  }, [dbImages]);
 
   const total = allImages.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -121,65 +147,71 @@ export default function GalleryView() {
     <div className="h-auto flex flex-col space-y-4">
       {/* Header + Add image */}
       <div className="flex items-center justify-between shrink-0">
-        <h2 className="text-2xl font-display font-semibold">
-          Gallery Management
-        </h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Image
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Image</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="image_url">Image URL</Label>
-                <Input
-                  id="image_url"
-                  name="image_url"
-                  type="url"
-                  required
-                  placeholder="https://..."
-                />
-              </div>
-              <div>
-                <Label htmlFor="alt_text">Alt Text</Label>
-                <Input
-                  id="alt_text"
-                  name="alt_text"
-                  required
-                  placeholder="Describe the image"
-                />
-              </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Select name="category" required>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={createImageMutation.isLoading}
-              >
+        <div>
+          <h2 className="text-2xl font-display font-semibold">
+            Gallery Management
+          </h2>
+          {!isAdmin && (
+            <p className="text-xs text-muted-foreground mt-1">
+              View only – only admins can upload or delete images.
+            </p>
+          )}
+        </div>
+
+        {isAdmin && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
                 Add Image
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Image</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Upload a new image to the gallery
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="file_name">Name</Label>
+                  <Input
+                    id="file_name"
+                    name="file_name"
+                    placeholder="Image name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    name="description"
+                    placeholder="Short description for this image"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="file">Upload file</Label>
+                  <Input
+                    id="file"
+                    name="file"
+                    type="file"
+                    accept="image/*"
+                    required
+                    className="cursor-pointer file:cursor-pointer"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={createImageMutation.isLoading}
+                >
+                  Add Image
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Main content + fixed footer */}
@@ -196,15 +228,15 @@ export default function GalleryView() {
           </div>
         ) : (
           <>
-            {/* Images wrapper -> inner Pinterest layout; pagination stays fixed */}
             <div className="flex-1 flex items-stretch overflow-hidden">
               <div className="w-full mt-2">
                 <div className="h-full overflow-hidden">
                   <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
                     {pageImages.map((image, idx) => {
                       const isDb = Boolean(image.id);
+                      const title = image.name || "Untitled image";
                       return (
-                        <Dialog key={image.id ?? `local-${idx}`}>
+                        <Dialog key={image.id ?? `db-${idx}`}>
                           <DialogTrigger asChild>
                             <div className="mb-4 break-inside-avoid cursor-pointer">
                               <div className="relative w-full overflow-hidden rounded-lg">
@@ -213,10 +245,11 @@ export default function GalleryView() {
                                   alt={image.alt_text}
                                   loading="lazy"
                                   className="w-full h-auto object-cover"
+                                  title={title} // tooltip (hover title)
                                 />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-end">
                                   <p className="w-full text-xs text-white/90 px-2 py-1 bg-black/40 line-clamp-2">
-                                    {image.alt_text}
+                                    {title}
                                   </p>
                                 </div>
                               </div>
@@ -224,7 +257,10 @@ export default function GalleryView() {
                           </DialogTrigger>
                           <DialogContent className="max-w-3xl">
                             <DialogHeader>
-                              <DialogTitle>{image.alt_text}</DialogTitle>
+                              <DialogTitle>{title}</DialogTitle>
+                              <DialogDescription className="sr-only">
+                                Image preview dialog
+                              </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-3">
                               <img
@@ -236,7 +272,7 @@ export default function GalleryView() {
                                 <p className="text-sm text-muted-foreground">
                                   {image.alt_text}
                                 </p>
-                                {isDb && (
+                                {isAdmin && isDb && (
                                   <Button
                                     variant="destructive"
                                     size="sm"
@@ -263,7 +299,6 @@ export default function GalleryView() {
               </div>
             </div>
 
-            {/* Fixed footer for pagination */}
             <div className="border-t pt-3 mt-2">
               <div className="flex items-center justify-center gap-4">
                 <Button
