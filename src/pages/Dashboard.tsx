@@ -8,7 +8,7 @@ import ApplicationsView from "@/components/dashboard/ApplicationsView";
 import MembersView from "@/components/dashboard/MembersView";
 import EventsView from "@/components/dashboard/EventsView";
 import GalleryView from "@/components/dashboard/GalleryView";
-import HeroContentView from "@/components/dashboard/HeroContentView";
+import AdminProfileSettings from "@/components/dashboard/AdminProfileSettings";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { Users, Calendar, FileText } from "lucide-react";
 
@@ -27,7 +27,6 @@ export default function Dashboard() {
     }
   }, [user, loading, navigate]);
 
-  // habang naglo-load pa, show loader para hindi ka ma-null
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -37,7 +36,7 @@ export default function Dashboard() {
   }
 
   if (!user) {
-    return null; // dito na lang as fallback, dapat na-redirect ka na sa useEffect
+    return null;
   }
 
   const renderView = () => {
@@ -50,8 +49,8 @@ export default function Dashboard() {
         return <EventsView />;
       case "gallery":
         return <GalleryView />;
-      case "hero":
-        return <HeroContentView />;
+      case "profile":
+        return <AdminProfileSettings />;
       default:
         return (
           <>
@@ -83,15 +82,6 @@ export default function Dashboard() {
                 icon={FileText}
                 description="Awaiting review"
               />
-              {/* Pending Applications Table */}
-              {/* <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-display font-semibold">
-                  Pending Application Requests
-                </h2>
-              </div>
-              <PendingApplicationsTable />
-            </div> */}
             </div>
           </>
         );

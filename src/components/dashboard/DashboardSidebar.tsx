@@ -6,7 +6,7 @@ import {
   Users,
   Calendar,
   Image,
-  Layout,
+  User,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -48,10 +48,10 @@ const navItems = [
     path: "/dashboard?view=gallery",
   },
   {
-    id: "hero",
-    label: "Hero Content",
-    icon: Layout,
-    path: "/dashboard?view=hero",
+    id: "profile",
+    label: "Profile",
+    icon: User,
+    path: "/dashboard?view=profile",
   },
 ];
 
