@@ -7,6 +7,7 @@ import Candle from "../../assets/icons/candle.svg?react";
 import Cross from "../../assets/icons/cross.svg?react";
 import Thurible from "../../assets/icons/thurible.svg?react";
 import Boat from "../../assets/icons/boat.svg?react";
+import Bell from "../../assets/icons/bell.svg?react";
 
 const ALL = "All" as const;
 const categories = [ALL, "Mass", "Procession", "Special Events"] as const;
@@ -17,7 +18,7 @@ type Item = {
   title: string;
   icon?: React.FC<React.SVGProps<SVGSVGElement>>;
   desc: string;
-  category: Category;
+  category: Category | Category[]; // <-- allow multiple categories
 };
 
 const items: Item[] = [
@@ -37,7 +38,7 @@ const items: Item[] = [
     title: "Thurifers",
     icon: Thurible,
     desc: "Prepare and handle incense for solemn rites.",
-    category: "Mass",
+    category: ["Mass", "Procession"], // <-- FIXED
   },
   {
     title: "Masters of Ceremonies",
@@ -49,13 +50,13 @@ const items: Item[] = [
     title: "Altar Servers",
     icon: Server,
     desc: "Assist the priest and liturgical ministers during Mass.",
-    category: "Mass",
+    category: ["Mass", "Procession"],
   },
   {
     title: "Boat Bearers",
     icon: Boat,
     desc: "Carry the incense boat during the celebration of Mass.",
-    category: "Mass",
+    category: ["Mass", "Procession"], // <-- FIXED
   },
   {
     title: "Banner Bearers",
@@ -69,11 +70,23 @@ const items: Item[] = [
     desc: "Carry candles during processions and assist at the altar as needed.",
     category: "Procession",
   },
+  {
+    title: "Bell Bearers",
+    icon: Bell,
+    desc: "Ring the sanctus bells during consecration and key liturgical moments.",
+    category: ["Mass", "Procession"], // <-- FIXED
+  },
 ];
 
 export default function Ministries() {
   const [filter, setFilter] = useState<Category>(ALL);
-  const filtered = items.filter((i) => filter === ALL || i.category === filter);
+  const filtered = items.filter((i) =>
+    filter === ALL
+      ? true
+      : Array.isArray(i.category)
+      ? i.category.includes(filter)
+      : i.category === filter
+  );
 
   return (
     <section id="ministries" className="py-20">
