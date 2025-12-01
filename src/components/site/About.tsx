@@ -42,8 +42,12 @@ export default function About() {
               >
                 <h3 className="font-semibold">Mission</h3>
                 <p className="text-sm text-muted-foreground">
-                  To sanctify the liturgy through faithful service at the altar
-                  and to form young hearts in love and discipline.
+                  CARAS de San Sebastian is committed to forming altar servers
+                  who live the Augustinian Recollect spirituality through deep
+                  love for God, prayer, and community. They grow together in
+                  unity and humility, serving the Church with reverence and
+                  dedication. Through continuous formation and faithful witness,
+                  they strive to reflect Christ in their daily lives.
                 </p>
               </div>
               <div
@@ -52,8 +56,13 @@ export default function About() {
               >
                 <h3 className="font-semibold">Vision</h3>
                 <p className="text-sm text-muted-foreground">
-                  A brotherhood of altar servers embodying humility, charity and
-                  excellence in the worship of God.
+                  CARAS de San Sebastian envisions a community of altar servers
+                  deeply rooted in the Augustinian Recollect spirit—united in
+                  one heart and one mind in God, formed by contemplative love,
+                  fraternal communion, and joyful service. Inspired by the
+                  legacy of the Order, we aspire to lead young people toward
+                  holiness by nurturing a life of prayer, simplicity, and
+                  readiness to serve the Church and the People of God.
                 </p>
               </div>
             </div>
@@ -113,7 +122,7 @@ export default function About() {
                     Assistant Committee on Training and Development
                   </h4>
                   <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Matthew Gavin Vidallon</strong> - 8 years in service
+                    <strong>Matthew Gavin Vidallon</strong> - 1 year in service
                   </p>
                   <h4 className="officers italic">
                     Head Committee on Liturgical Services

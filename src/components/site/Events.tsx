@@ -22,13 +22,13 @@ const events: Event[] = [
     title: "Investiture and Renewal",
     date: "2025-08-16",
     featured: true,
-    description: "Mass, and solemn celebrations.",
+    description: "",
   },
   {
     id: "2",
     title: "Month of St. Tarcicius & Recruitment",
     date: "2025-08-10",
-    description: "Updated serving schedule for all teams.",
+    description: "",
   },
   {
     id: "3",

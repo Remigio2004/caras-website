@@ -13,15 +13,17 @@ import {
 interface GalleryImage {
   id: string;
   image_url: string;
-  alt_text: string; // description
-  name?: string; // image name field
+  alt_text: string;
+  name?: string;
   created_at: string;
+  album?: string | null;
 }
 
 const PAGE_SIZE = 12;
 
 export default function Gallery() {
   const [page, setPage] = useState(0);
+  const [selectedAlbum, setSelectedAlbum] = useState<string>("Bible Verse");
 
   const { data: dbImages, isLoading } = useQuery({
     queryKey: ["public-gallery"],
@@ -41,18 +43,37 @@ export default function Gallery() {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // randomize images
+  // normalize + randomize images
   const allImages = useMemo(() => {
     const combined = dbImages || [];
     return combined
+      .map((img) => ({
+        ...img,
+        album: img.album || "General",
+      }))
       .map((img) => ({ img, sort: Math.random() }))
       .sort((a, b) => a.sort - b.sort)
       .map(({ img }) => img) as GalleryImage[];
   }, [dbImages]);
 
-  const totalPages = Math.max(1, Math.ceil(allImages.length / PAGE_SIZE));
+  // get list of albums for dropdown
+  const albumOptions = useMemo(() => {
+    const set = new Set<string>();
+    allImages.forEach((img) => set.add(img.album || "General"));
+    return ["All", ...Array.from(set).sort()];
+  }, [allImages]);
 
-  const pageImages = allImages.slice(
+  // apply album filter
+  const filteredImages = useMemo(() => {
+    if (selectedAlbum === "All") return allImages;
+    return allImages.filter(
+      (img) => (img.album || "General") === selectedAlbum
+    );
+  }, [allImages, selectedAlbum]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredImages.length / PAGE_SIZE));
+
+  const pageImages = filteredImages.slice(
     page * PAGE_SIZE,
     page * PAGE_SIZE + PAGE_SIZE
   );
@@ -67,25 +88,45 @@ export default function Gallery() {
     setTimeout(scrollToGallery, 50);
   };
 
+  const handleAlbumChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedAlbum(e.target.value);
+    setPage(0);
+  };
+
   return (
     <section id="gallery" className="py-20 overflow-y-hidden">
       <div className="container">
-        {/* Title only */}
+        {/* Title + album filter */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-3xl font-display">Gallery</h2>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Album:</span>
+            <select
+              value={selectedAlbum}
+              onChange={handleAlbumChange}
+              className="border rounded-md px-3 py-1 text-sm bg-background"
+            >
+              {albumOptions.map((album) => (
+                <option key={album} value={album}>
+                  {album}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {isLoading && !dbImages ? (
           <div className="mt-8 text-center text-muted-foreground">
             Loading gallery...
           </div>
-        ) : !allImages || allImages.length === 0 ? (
+        ) : !filteredImages || filteredImages.length === 0 ? (
           <div className="mt-8 text-center text-muted-foreground">
             No images in gallery
           </div>
         ) : (
           <>
-            {/* Images – same layout as old version */}
+            {/* Images */}
             <div className="mt-6 columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
               <div className="grid gap-4">
                 {pageImages.map((img, index) => {
@@ -101,7 +142,6 @@ export default function Gallery() {
                             className="w-full rounded-lg border shadow-sm hover:scale-[1.02] transition"
                             title={title}
                           />
-                          {/* hover title bar at bottom */}
                           <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-end">
                             <p className="w-full text-xs text-white/90 px-2 py-1 bg-black/40 line-clamp-2">
                               {title}
@@ -131,7 +171,7 @@ export default function Gallery() {
               </div>
             </div>
 
-            {/* Pagination – unchanged behavior */}
+            {/* Pagination */}
             <div className="flex justify-center gap-4 mt-10">
               <button
                 onClick={handlePrevClick}
