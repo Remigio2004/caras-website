@@ -1,3 +1,4 @@
+// App.tsx
 import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,6 +10,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import EventNarrativePage from "./components/site/EventNarrativePage";
 import { AuthProvider } from "@/hooks/useAuth";
 
 import "./index.css";
@@ -19,7 +21,7 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2500); // adjust time
+    const timer = setTimeout(() => setLoading(false), 2500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -30,15 +32,15 @@ const App = () => {
         <Sonner />
         <AuthProvider>
           <BrowserRouter>
-            {/* ALL ROUTES */}
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/event/:id" element={<EventNarrativePage />} />{" "}
+              {/* ← NEW */}
               <Route path="*" element={<NotFound />} />
             </Routes>
 
-            {/* LOADING SCREEN OVERLAY (Always on top) */}
             {loading && (
               <div id="initial-loader">
                 <img src="src/assets/logo-main.png" alt="CARAS logo" />
