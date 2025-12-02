@@ -65,7 +65,6 @@ interface Member {
 export default function ApplicationsView() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  // default now "pending"
   const [statusFilter, setStatusFilter] = useState("pending");
   const [typeFilter, setTypeFilter] = useState<"all" | "adult" | "parent">(
     "all"
@@ -73,7 +72,7 @@ export default function ApplicationsView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // ADULT APPLICATIONS
+  // FETCH ADULT APPLICATIONS
   const { data: adultApps, isLoading: loadingAdult } = useQuery({
     queryKey: ["adult-applications", statusFilter],
     queryFn: async () => {
@@ -82,9 +81,7 @@ export default function ApplicationsView() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -92,7 +89,7 @@ export default function ApplicationsView() {
     },
   });
 
-  // PARENT APPLICATIONS
+  // FETCH PARENT APPLICATIONS
   const { data: parentApps, isLoading: loadingParent } = useQuery({
     queryKey: ["parent-applications", statusFilter],
     queryFn: async () => {
@@ -101,9 +98,7 @@ export default function ApplicationsView() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -111,6 +106,7 @@ export default function ApplicationsView() {
     },
   });
 
+  // COMBINE ALL APPLICATIONS
   const allApplications: Application[] = [
     ...(adultApps || []),
     ...(parentApps || []),
@@ -119,7 +115,7 @@ export default function ApplicationsView() {
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
-  // minimal members list for "Remove" button
+  // FETCH MEMBERS (for remove functionality)
   const { data: members } = useQuery({
     queryKey: ["members-for-applications"],
     queryFn: async () => {
@@ -145,7 +141,7 @@ export default function ApplicationsView() {
     );
   };
 
-  // APPROVE (update status + insert to members)
+  // APPROVE APPLICATION
   const acceptMutation = useMutation({
     mutationFn: async (app: Application) => {
       const table =
@@ -189,9 +185,7 @@ export default function ApplicationsView() {
       queryClient.invalidateQueries({ queryKey: ["adult-applications"] });
       queryClient.invalidateQueries({ queryKey: ["parent-applications"] });
       queryClient.invalidateQueries({ queryKey: ["members"] });
-      queryClient.invalidateQueries({
-        queryKey: ["members-for-applications"],
-      });
+      queryClient.invalidateQueries({ queryKey: ["members-for-applications"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({
         title: "Success",
@@ -208,12 +202,11 @@ export default function ApplicationsView() {
     },
   });
 
-  // REJECT
+  // REJECT APPLICATION
   const rejectMutation = useMutation({
     mutationFn: async (app: Application) => {
       const table =
         app.type === "adult" ? "adult_applications" : "parent_applications";
-
       const { error } = await supabase
         .from(table)
         .update({ status: "rejected" })
@@ -236,7 +229,7 @@ export default function ApplicationsView() {
     },
   });
 
-  // REMOVE MEMBER (only if already accepted)
+  // REMOVE MEMBER
   const removeMemberMutation = useMutation({
     mutationFn: async (memberId: string) => {
       const { error } = await supabase
@@ -247,9 +240,7 @@ export default function ApplicationsView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members"] });
-      queryClient.invalidateQueries({
-        queryKey: ["members-for-applications"],
-      });
+      queryClient.invalidateQueries({ queryKey: ["members-for-applications"] });
       toast({
         title: "Removed",
         description: "Member removed from members list.",
@@ -264,6 +255,7 @@ export default function ApplicationsView() {
     },
   });
 
+  // FILTER APPLICATIONS
   const filteredApplications = allApplications.filter((app) => {
     const matchesType = typeFilter === "all" || app.type === typeFilter;
     const name =
@@ -278,6 +270,7 @@ export default function ApplicationsView() {
     return matchesType && matchesSearch;
   });
 
+  // EXPORT CSV
   const exportToCSV = () => {
     if (!filteredApplications || filteredApplications.length === 0) return;
 
@@ -289,7 +282,6 @@ export default function ApplicationsView() {
       "Status",
       "Date Submitted",
     ];
-
     const rows = filteredApplications.map((app) => [
       app.type === "adult" ? app.name : (app as ParentApplication).child_name,
       app.type === "adult" ? app.age : (app as ParentApplication).child_age,
@@ -314,8 +306,8 @@ export default function ApplicationsView() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 h-[90vh] flex flex-col">
-      {/* Header + search */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      {/* Header + Search + Export */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <h2 className="text-xl md:text-2xl font-semibold">
           Membership Applications
         </h2>
@@ -334,21 +326,19 @@ export default function ApplicationsView() {
             variant="outline"
             className="w-full sm:w-auto"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-        {/* STATUS TABS – Pending is default, no All */}
         <Tabs
           value={statusFilter}
           onValueChange={setStatusFilter}
           className="w-full md:w-auto"
         >
-          <TabsList className="w-full md:w-auto flex flex-wrap">
+          <TabsList className="flex flex-wrap w-full md:w-auto">
             <TabsTrigger value="pending" className="flex-1 md:flex-none">
               Pending
             </TabsTrigger>
@@ -366,7 +356,7 @@ export default function ApplicationsView() {
           onValueChange={(v) => setTypeFilter(v as any)}
           className="w-full md:w-auto"
         >
-          <TabsList className="w-full md:w-auto flex flex-wrap">
+          <TabsList className="flex flex-wrap w-full md:w-auto">
             <TabsTrigger value="all" className="flex-1 md:flex-none">
               All Types
             </TabsTrigger>
@@ -380,7 +370,7 @@ export default function ApplicationsView() {
         </Tabs>
       </div>
 
-      {/* Desktop / tablet table */}
+      {/* Desktop Table */}
       <div className="hidden md:flex flex-1 overflow-hidden border rounded-lg bg-card flex-col">
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
@@ -482,7 +472,7 @@ export default function ApplicationsView() {
         )}
       </div>
 
-      {/* Mobile cards list */}
+      {/* Mobile Cards */}
       <div className="md:hidden flex-1 overflow-auto space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center text-muted-foreground text-sm h-full">
@@ -500,16 +490,11 @@ export default function ApplicationsView() {
                 key={`${app.type}-${app.id}`}
                 className="border rounded-lg bg-card px-3 py-3 shadow-sm space-y-2"
               >
-                {/* Top row: name + age */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium">
-                    {app.type === "adult"
-                      ? app.name
-                      : (app as ParentApplication).child_name}
-                  </div>
+                <div className="flex items-center justify-between gap-2 font-medium">
+                  {app.type === "adult"
+                    ? app.name
+                    : (app as ParentApplication).child_name}
                 </div>
-
-                {/* Contact + meta */}
                 <div className="text-xs space-y-1">
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Age</span>
@@ -543,7 +528,6 @@ export default function ApplicationsView() {
                   </div>
                 </div>
 
-                {/* Actions full width – preserve your order/positioning */}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {app.status === "pending" && (
                     <>
@@ -552,39 +536,36 @@ export default function ApplicationsView() {
                         className="flex-1 min-w-[80px] bg-red-600 text-white hover:bg-red-700"
                         onClick={() => rejectMutation.mutate(app)}
                       >
-                        <X className="w-4 h-4 mr-1" />
+                        <X className="w-4 h-4 mr-1" /> Reject
                       </Button>
                       <Button
                         size="sm"
                         className="flex-1 min-w-[80px] bg-green-600 text-white hover:bg-green-700"
                         onClick={() => acceptMutation.mutate(app)}
                       >
-                        <Check className="w-4 h-4 mr-1" />
+                        <Check className="w-4 h-4 mr-1" /> Approve
                       </Button>
                     </>
                   )}
+                  <Button
+                    size="sm"
+                    className="flex-1 min-w-[80px]"
+                    onClick={() => setSelectedApp(app)}
+                  >
+                    <Eye className="w-4 h-4 mr-1" /> View
+                  </Button>
                   {linkedMember && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full border-destructive text-destructive"
+                      className="flex-1 min-w-[80px] text-destructive border-destructive"
                       onClick={() =>
                         removeMemberMutation.mutate(linkedMember.id)
                       }
                     >
-                      Remove from members
+                      Remove
                     </Button>
                   )}
-                </div>
-                <div className="w-full">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full flex items-center justify-center"
-                    onClick={() => setSelectedApp(app)}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                  </Button>
                 </div>
               </div>
             );
@@ -592,81 +573,57 @@ export default function ApplicationsView() {
         )}
       </div>
 
-      {/* Details dialog */}
+      {/* Dialog */}
       <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
-        <DialogContent className="max-w-sm sm:max-w-md md:max-w-lg">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Application Details</DialogTitle>
-            <DialogDescription>Full application information</DialogDescription>
-          </DialogHeader>
-          {selectedApp && (
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="font-semibold text-xs uppercase text-muted-foreground">
-                  Name
-                </p>
-                <p>
-                  {selectedApp.type === "adult"
-                    ? selectedApp.name
-                    : (selectedApp as ParentApplication).child_name}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <p className="font-semibold text-xs uppercase text-muted-foreground">
-                    Age
+            <DialogDescription>
+              {selectedApp && (
+                <div className="space-y-2">
+                  <p>
+                    <strong>Name:</strong>{" "}
+                    {selectedApp.type === "adult"
+                      ? selectedApp.name
+                      : (selectedApp as ParentApplication).child_name}
                   </p>
                   <p>
+                    <strong>Age:</strong>{" "}
                     {selectedApp.type === "adult"
                       ? selectedApp.age
                       : (selectedApp as ParentApplication).child_age}
                   </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-xs uppercase text-muted-foreground">
-                    Status
+                  <p>
+                    <strong>Contact:</strong>{" "}
+                    {selectedApp.type === "adult"
+                      ? selectedApp.contact
+                      : (selectedApp as ParentApplication).parent_phone}
                   </p>
-                  <p className="capitalize">{selectedApp.status}</p>
-                </div>
-              </div>
-              {selectedApp.type === "parent" && (
-                <div>
-                  <p className="font-semibold text-xs uppercase text-muted-foreground">
-                    Parent Name
+                  <p>
+                    <strong>Birthday:</strong> {selectedApp.birthday}
                   </p>
-                  <p>{(selectedApp as ParentApplication).parent_name}</p>
+                  <p>
+                    <strong>Guardian:</strong> {selectedApp.guardian}
+                  </p>
+                  <p>
+                    <strong>Facebook:</strong> {selectedApp.fb_acc}
+                  </p>
+                  {selectedApp.message && (
+                    <p>
+                      <strong>Message:</strong> {selectedApp.message}
+                    </p>
+                  )}
+                  <p>
+                    <strong>Status:</strong> {selectedApp.status}
+                  </p>
+                  <p>
+                    <strong>Submitted:</strong>{" "}
+                    {format(new Date(selectedApp.created_at), "MMM dd, yyyy")}
+                  </p>
                 </div>
               )}
-              <div>
-                <p className="font-semibold text-xs uppercase text-muted-foreground">
-                  Contact
-                </p>
-                <p>
-                  {selectedApp.type === "adult"
-                    ? selectedApp.contact
-                    : (selectedApp as ParentApplication).parent_phone}
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold text-xs uppercase text-muted-foreground">
-                  Address
-                </p>
-                <p>{selectedApp.address}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-xs uppercase text-muted-foreground">
-                  Facebook Account
-                </p>
-                <p>{selectedApp.fb_acc || "N/A"}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-xs uppercase text-muted-foreground">
-                  Message
-                </p>
-                <p>{selectedApp.message || "No message"}</p>
-              </div>
-            </div>
-          )}
+            </DialogDescription>
+          </DialogHeader>
         </DialogContent>
       </Dialog>
     </div>

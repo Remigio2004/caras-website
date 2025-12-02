@@ -1,32 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useDashboardStats() {
+export const useDashboardStats = () => {
   return useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      // Get total members (approved applications)
-      const { count: membersCount } = await supabase
-        .from("membership_applications")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "approved");
+      const { count: totalMembers } = await supabase
+        .from("members")
+        .select("*", { count: "exact", head: true });
 
-      // Get pending applications
-      const { count: pendingCount } = await supabase
-        .from("membership_applications")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending");
-
-      // Get events count
-      const { count: eventsCount } = await supabase
+      const { count: totalEvents } = await supabase
         .from("events")
         .select("*", { count: "exact", head: true });
 
+      const { count: pendingAdult } = await supabase
+        .from("adult_applications")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+
+      const { count: pendingParent } = await supabase
+        .from("parent_applications")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+
+      const pendingApplications = (pendingAdult ?? 0) + (pendingParent ?? 0);
+
       return {
-        totalMembers: membersCount || 0,
-        pendingApplications: pendingCount || 0,
-        totalEvents: eventsCount || 0,
+        totalMembers: totalMembers ?? 0,
+        totalEvents: totalEvents ?? 0,
+        pendingApplications,
       };
     },
+    refetchOnWindowFocus: true,
   });
-}
+};
