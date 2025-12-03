@@ -21,6 +21,7 @@ import {
 import { Search, Phone, Download, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import * as ExcelJS from "exceljs";
 
 interface Member {
   id: string;
@@ -133,38 +134,143 @@ export default function MembersView() {
     },
   });
 
-  const exportToCSV = () => {
-    if (!members || members.length === 0) return;
+  const exportToExcel = async () => {
+    try {
+      toast({
+        title: "Preparing export",
+        description: "Loading template and data...",
+      });
 
-    const headers = [
-      "Full Name",
-      "Birthday",
-      "Age",
-      "Address",
-      "Guardian",
-      "Contact Number",
-      "Batch",
-      "Joined",
-    ];
+      // 1) Fetch all members (no pagination)
+      let query = supabase
+        .from("members")
+        .select("*")
+        .order("batch", { ascending: true })
+        .order("full_name", { ascending: true });
 
-    const rows = members.map((m) => [
-      m.full_name,
-      m.birthday,
-      m.age,
-      m.address,
-      m.guardian,
-      m.contact_number,
-      m.batch,
-      format(new Date(m.created_at), "yyyy-MM-dd"),
-    ]);
+      if (searchTerm.trim()) {
+        const term = `%${searchTerm.trim()}%`;
+        query = query.or(
+          `full_name.ilike.${term},address.ilike.${term},contact_number.ilike.${term}`
+        );
+      }
 
-    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `members-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
+      const { data, error } = await query;
+
+      if (error) {
+        console.error(error);
+        toast({
+          title: "Export failed",
+          description: "Hindi ma-export ang members.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        toast({
+          title: "No data",
+          description: "Walang members na ma-e-export.",
+        });
+        return;
+      }
+
+      const membersForExport = (data as Member[]).slice();
+
+      // just to be sure: sort by batch then full_name
+      membersForExport.sort((a, b) => {
+        if (a.batch !== b.batch) return a.batch - b.batch;
+        return a.full_name.localeCompare(b.full_name);
+      });
+
+      // 2) Load template from /public
+      const templateResponse = await fetch("/CARAS-Official-Masterlist.xlsx");
+      const templateBuffer = await templateResponse.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(templateBuffer);
+
+      const worksheet = workbook.worksheets[0]; // "Masterlist" usually
+
+      // 3) Write data starting row 11 (1–9 fixed layout)
+      let currentRow = 10;
+      let currentBatch: number | null = null;
+
+      for (const member of membersForExport) {
+        if (currentBatch !== null && member.batch !== currentBatch) {
+          // blank separator row between batches
+          currentRow++;
+        }
+        currentBatch = member.batch;
+
+        const row = worksheet.getRow(currentRow);
+
+        const setCell = (
+          col: number,
+          value: any,
+          opts?: { date?: boolean }
+        ) => {
+          const cell = row.getCell(col);
+
+          if (opts?.date) {
+            const date = new Date(value);
+            cell.value = date;
+            cell.numFmt = "mmmm d, yyyy";
+          } else {
+            cell.value = value;
+          }
+
+          cell.font = {
+            name: "Sitka Display",
+            size: 11,
+          };
+        };
+
+        setCell(1, member.full_name);
+        setCell(2, member.birthday); // or new Date(member.birthday)
+        setCell(3, member.age);
+        setCell(4, member.address);
+        setCell(5, member.guardian);
+        setCell(6, member.contact_number);
+        setCell(7, member.batch);
+
+        row.commit();
+        currentRow++;
+      }
+
+      // 4) Optional: clear a few extra rows after last data kung may tira sa template
+      for (let r = currentRow; r < currentRow + 50; r++) {
+        const row = worksheet.getRow(r);
+        row.values = [];
+        row.commit();
+      }
+
+      // 5) Generate and download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `CARAS-Official-Masterlist-${format(
+        new Date(),
+        "yyyy-MM-dd"
+      )}.xlsx`;
+      a.click();
+
+      toast({
+        title: "Export successful",
+        description: "Masterlist downloaded successfully.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Export error",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleOpenDetails = (member: Member) => {
@@ -230,11 +336,11 @@ export default function MembersView() {
           </div>
           <Button
             variant="outline"
-            onClick={exportToCSV}
+            onClick={exportToExcel}
             className="w-full sm:w-auto"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </div>
