@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import EventNarrativePage from "./components/site/EventNarrativePage";
 import { AuthProvider } from "@/hooks/useAuth";
 
+import MainLogo from "@/assets/logo-main.png";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -43,7 +44,7 @@ const App = () => {
 
             {loading && (
               <div id="initial-loader">
-                <img src="src/assets/logo-main.png" alt="CARAS logo" />
+                <img src={MainLogo} alt="CARAS logo" />
                 <p>Loading...</p>
               </div>
             )}
