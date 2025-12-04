@@ -8,6 +8,7 @@ import Gallery from "@/components/site/Gallery";
 import JoinUs from "@/components/site/JoinUs";
 import Contact from "@/components/site/Contact";
 import Footer from "@/components/site/Footer";
+import CarasChatbot from "@/components/site/CarasChatbot";
 
 const Index = () => {
   return (
@@ -22,6 +23,7 @@ const Index = () => {
         <Gallery />
         <JoinUs />
         <Contact />
+        <CarasChatbot />
       </main>
       <Footer />
     </div>

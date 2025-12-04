@@ -37,8 +37,7 @@ const App = () => {
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/event/:id" element={<EventNarrativePage />} />{" "}
-              {/* ← NEW */}
+              <Route path="/event/:id" element={<EventNarrativePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
 
