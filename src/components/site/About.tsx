@@ -5,7 +5,7 @@ export default function About() {
   return (
     <section
       id="about"
-      className="py-20 min-h-[80vh] max-h-[300vh] bg-neutral-50"
+      className="py-[105px] min-h-[80vh] max-h-[300vh] bg-neutral-50"
     >
       {/* Main container for two rows */}
       <div className="container mx-auto px-[4-rem] flex flex-col gap-10">
