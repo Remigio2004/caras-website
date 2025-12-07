@@ -48,7 +48,7 @@ export default function Hero() {
       {/* Content */}
       <div className="relative container py-24 text-center animate-enter">
         <h1 className="font-display text-4xl md:text-6xl tracking-tight text-primary-foreground drop-shadow-md">
-          <span className="text-[hsl(var(--brand-gold))]">Serve the Lord</span>
+          <span className="text-[hsl(var(--brand-gold))]">Serve the Lord </span>
           with Gladness
         </h1>
 

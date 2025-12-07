@@ -10,9 +10,24 @@ function isValidPhone(phone = "") {
   return /^[0-9\-\+\(\) ]{7,}$/.test(phone.trim());
 }
 
+// helper to compute age from date string "YYYY-MM-DD"
+function getAgeFromBirthdate(birthdate: string): number {
+  if (!birthdate) return 0;
+  const today = new Date();
+  const dob = new Date(birthdate);
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age;
+}
+
 export default function JoinUs() {
   const [loading, setLoading] = useState(false);
   const [under18, setUnder18] = useState(false);
+  const [age, setAge] = useState<number | "">(""); // NEW
+  const [childAge, setChildAge] = useState<number | "">(""); // NEW
   const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -21,6 +36,13 @@ export default function JoinUs() {
 
     const data = new FormData(e.currentTarget);
     const payload = Object.fromEntries(data.entries());
+
+    // override age fields with computed state (para siguradong tama)
+    if (!under18) {
+      payload.age = age === "" ? "" : String(age);
+    } else {
+      payload["child-age"] = childAge === "" ? "" : String(childAge);
+    }
 
     // --- VALIDATION ---
     if (!under18) {
@@ -170,7 +192,7 @@ export default function JoinUs() {
       result = await supabase.from("adult_applications").insert([
         {
           name: payload.name,
-          birthday: payload.birthday, // must be type date/text in DB
+          birthday: payload.birthday,
           age: Number(payload.age),
           address: payload.address,
           contact: payload.contact,
@@ -183,7 +205,7 @@ export default function JoinUs() {
       result = await supabase.from("parent_applications").insert([
         {
           child_name: payload["child-name"],
-          birthday: payload.birthday, // must be in parent_applications DB as date/text
+          birthday: payload.birthday,
           child_age: Number(payload["child-age"]),
           address: payload.address,
           parent_name: payload["parent-name"],
@@ -212,6 +234,8 @@ export default function JoinUs() {
       setTimeout(() => {
         formRef.current?.reset();
         setUnder18(false);
+        setAge("");
+        setChildAge("");
       }, 800);
     }
   }
@@ -219,7 +243,6 @@ export default function JoinUs() {
   return (
     <section id="join" className="py-20 bg-neutral-50 min-h-[100vh]">
       <div className="container mx-auto px-[4-rem] grid md:grid-cols-2 gap-10 items-center">
-        {/* IMAGE */}
         <div className="relative order-1 md:order-2 block">
           <div className="rounded-lg overflow-hidden bg-gradient-emerald shadow-elegant">
             <img
@@ -230,7 +253,7 @@ export default function JoinUs() {
           </div>
           <div className="absolute -bottom-6 -left-6 w-40 h-40 rounded-full bg-gradient-altar opacity-80 shadow-glow hidden md:block" />
         </div>
-        {/* FORM */}
+
         <div className="order-2 md:order-1">
           <h2 className="text-3xl md:text-4xl font-display">Join Us</h2>
           <p className="mt-2 text-muted-foreground max-w-xl text-justify">
@@ -238,6 +261,7 @@ export default function JoinUs() {
               ? "This form is for applicants under 18 and requires a parent or guardian to fill out the information."
               : "Fill out the form below. Applicants should be committed to formation and regular attendance."}
           </p>
+
           <form
             ref={formRef}
             onSubmit={onSubmit}
@@ -252,13 +276,29 @@ export default function JoinUs() {
                   </div>
                   <div>
                     <label className="text-sm">Birthday</label>
-                    <Input name="birthday" type="date" required />
+                    <Input
+                      name="birthday"
+                      type="date"
+                      required
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const computedAge = getAgeFromBirthdate(value);
+                        setAge(isNaN(computedAge) ? "" : computedAge);
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm">Age</label>
-                    <Input name="age" type="number" min={7} required />
+                    <Input
+                      name="age"
+                      type="number"
+                      min={7}
+                      required
+                      value={age}
+                      readOnly
+                    />
                   </div>
                   <div>
                     <label className="text-sm">Guardian's Name</label>
@@ -283,6 +323,7 @@ export default function JoinUs() {
                 </div>
               </>
             )}
+
             {under18 && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -292,13 +333,29 @@ export default function JoinUs() {
                   </div>
                   <div>
                     <label className="text-sm">Birthday</label>
-                    <Input name="birthday" type="date" required />
+                    <Input
+                      name="birthday"
+                      type="date"
+                      required
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const computedAge = getAgeFromBirthdate(value);
+                        setChildAge(isNaN(computedAge) ? "" : computedAge);
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm">Child’s Age</label>
-                    <Input name="child-age" type="number" min={1} required />
+                    <Input
+                      name="child-age"
+                      type="number"
+                      min={1}
+                      required
+                      value={childAge}
+                      readOnly
+                    />
                   </div>
                   <div>
                     <label className="text-sm">Guardian's Name</label>
@@ -329,6 +386,7 @@ export default function JoinUs() {
                 </div>
               </>
             )}
+
             <div className="flex gap-3 pt-2">
               <Button type="submit" variant="gold" disabled={loading}>
                 {loading ? "Submitting..." : "Submit"}
@@ -336,7 +394,11 @@ export default function JoinUs() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setUnder18(!under18)}
+                onClick={() => {
+                  setUnder18(!under18);
+                  setAge("");
+                  setChildAge("");
+                }}
               >
                 {under18 ? "18 and Above Form" : "Under 18?"}
               </Button>
