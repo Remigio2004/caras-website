@@ -92,7 +92,7 @@ export default function Ministries() {
     <section id="ministries" className="py-20">
       <div className="container">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-3xl font-display">Ministries & Services</h2>
+          <h2 className="text-3xl font-display">Roles & Services</h2>
           <div className="flex gap-2">
             {categories.map((c) => (
               <button

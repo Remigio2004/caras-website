@@ -16,6 +16,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, UploadCloud } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+
 interface GalleryImage {
   id?: string;
   image_url: string;
@@ -169,6 +181,33 @@ export default function GalleryView() {
     },
   });
 
+  // delete whole album (all rows with that album)
+  const deleteAlbumMutation = useMutation({
+    mutationFn: async (albumName: string) => {
+      if (!isAdmin) throw new Error("Not authorized");
+
+      const { error } = await supabase
+        .from("gallery")
+        .delete()
+        .eq("album", albumName);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gallery"] });
+      toast({ title: "Album deleted" });
+      setSelectedAlbum(null);
+    },
+    onError: (err) => {
+      console.error("delete album error:", err);
+      toast({
+        title: "Delete failed",
+        description: String(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateNameMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
       if (!isAdmin) throw new Error("Not authorized");
@@ -291,8 +330,21 @@ export default function GalleryView() {
     }
   };
 
+  const isUploading =
+    createImageMutation.isLoading || dropUploadMutation.isLoading;
+
   return (
-    <div className="h-auto flex flex-col space-y-4">
+    <div className="h-auto flex flex-col space-y-4 relative">
+      {/* global overlay spinner while uploading */}
+      {isUploading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40">
+          <div className="flex flex-col items-center gap-2 text-white text-sm">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <span>Uploading images, please wait…</span>
+          </div>
+        </div>
+      )}
+
       {/* Header + Add image */}
       <div className="flex items-center justify-between shrink-0">
         <div>
@@ -361,10 +413,15 @@ export default function GalleryView() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full flex items-center justify-center gap-2"
                   disabled={createImageMutation.isLoading}
                 >
-                  Add Images
+                  {createImageMutation.isLoading && (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  )}
+                  {createImageMutation.isLoading
+                    ? "Uploading..."
+                    : "Add Images"}
                 </Button>
               </form>
             </DialogContent>
@@ -406,14 +463,16 @@ export default function GalleryView() {
                           />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-80 group-hover:opacity-100 transition-opacity flex items-end">
-                          <div className="p-3 w-full">
-                            <p className="font-semibold text-white truncate">
-                              {album.name}
-                            </p>
-                            <p className="text-xs text-white/80">
-                              {album.count} photo
-                              {album.count !== 1 ? "s" : ""}
-                            </p>
+                          <div className="p-3 w-full flex items-center justify-between gap-2">
+                            <div>
+                              <p className="font-semibold text-white truncate">
+                                {album.name}
+                              </p>
+                              <p className="text-xs text-white/80">
+                                {album.count} photo
+                                {album.count !== 1 ? "s" : ""}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -424,12 +483,11 @@ export default function GalleryView() {
                     <DialogHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <DialogTitle>{album.name}</DialogTitle>
-                        {album.description && (
+                        {album.description ? (
                           <DialogDescription>
                             {album.description}
                           </DialogDescription>
-                        )}
-                        {!album.description && (
+                        ) : (
                           <DialogDescription>
                             {album.count} photo
                             {album.count !== 1 ? "s" : ""} in this album.
@@ -437,18 +495,58 @@ export default function GalleryView() {
                         )}
                       </div>
 
-                      {isAdmin && (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedAlbum(album.name);
-                            setIsDialogOpen(true);
-                          }}
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add images
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedAlbum(album.name);
+                                setIsDialogOpen(true);
+                              }}
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add images
+                            </Button>
+
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="destructive"
+                                  className="h-8 w-8"
+                                  title="Delete album"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Delete album “{album.name}”?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently remove all photos in
+                                    this album. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() =>
+                                      deleteAlbumMutation.mutate(album.name)
+                                    }
+                                    disabled={deleteAlbumMutation.isLoading}
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                      </div>
                     </DialogHeader>
 
                     <div
@@ -465,13 +563,18 @@ export default function GalleryView() {
                         <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground border-b bg-muted/40">
                           <UploadCloud className="w-4 h-4" />
                           <span>
-                            Drag & drop images here to add them to this album.
+                            Drag &amp; drop images here to add them to this
+                            album.
                           </span>
                         </div>
                       )}
 
                       <div className="p-3">
-                        {imagesInSelectedAlbum.length === 0 ? (
+                        {dropUploadMutation.isLoading ? (
+                          <p className="text-sm text-muted-foreground">
+                            Uploading images to this album...
+                          </p>
+                        ) : imagesInSelectedAlbum.length === 0 ? (
                           <p className="text-sm text-muted-foreground">
                             No images in this album yet.
                           </p>
@@ -488,7 +591,7 @@ export default function GalleryView() {
                                   key={image.id}
                                   className="mb-4 break-inside-avoid"
                                 >
-                                  <div className="relative w-full overflow-hidden rounded-lg">
+                                  <div className="relative w-full overflow-hidden rounded-lg group">
                                     <img
                                       src={image.image_url}
                                       alt={image.alt_text}
@@ -496,6 +599,7 @@ export default function GalleryView() {
                                       className="w-full h-auto object-cover"
                                       title={title}
                                     />
+
                                     <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-end">
                                       <div className="w-full px-2 py-1 bg-black/40">
                                         {isEditing ? (
@@ -522,26 +626,52 @@ export default function GalleryView() {
                                         )}
                                       </div>
                                     </div>
-                                  </div>
 
-                                  {isAdmin && isDb && (
-                                    <div className="flex justify-end mt-1">
-                                      <Button
-                                        variant="destructive"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() =>
-                                          image.id &&
-                                          deleteImageMutation.mutate(
-                                            image.id as string
-                                          )
-                                        }
-                                        disabled={deleteImageMutation.isLoading}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  )}
+                                    {isAdmin && isDb && (
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Delete image"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>
+                                              Delete this photo?
+                                            </AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              This photo will be permanently
+                                              removed from the album. This
+                                              action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>
+                                              Cancel
+                                            </AlertDialogCancel>
+                                            <AlertDialogAction
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              onClick={() =>
+                                                image.id &&
+                                                deleteImageMutation.mutate(
+                                                  image.id as string
+                                                )
+                                              }
+                                              disabled={
+                                                deleteImageMutation.isLoading
+                                              }
+                                            >
+                                              Delete
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}

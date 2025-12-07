@@ -5,21 +5,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import img1 from "../../assets/hero-basilica.jpg";
 import img2 from "../../assets/CARAS.png";
 import img3 from "../../assets/hero-bg.jpg";
-import img4 from "../../assets/hero-img.jpg"
-import img5 from "../../assets/hero-img2.jpg"
-import img6 from "../../assets/hero-img3.jpg"
-
+import img4 from "../../assets/hero-img.jpg";
+import img5 from "../../assets/hero-img2.jpg";
+import img6 from "../../assets/hero-img3.jpg";
 
 import { useEffect, useState } from "react";
 
 export default function Hero() {
-  const images = [img1, img2, img3, img4, img5, img6];   // <-- Add as many as you want
+  const images = [img1, img2, img3, img4, img5, img6]; // <-- Add as many as you want
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % images.length);
-    }, 4000);          // 4 seconds per image
+    }, 4000); // 4 seconds per image
     return () => clearInterval(timer);
   }, []);
 
@@ -49,16 +48,27 @@ export default function Hero() {
       {/* Content */}
       <div className="relative container py-24 text-center animate-enter">
         <h1 className="font-display text-4xl md:text-6xl tracking-tight text-primary-foreground drop-shadow-md">
-          <span className="text-[hsl(var(--brand-gold))]">Serving the Lord</span> at His Altar
+          <span className="text-[hsl(var(--brand-gold))]">Serve the Lord</span>
+          with Gladness
         </h1>
 
         <p className="mt-4 text-lg md:text-xl text-primary-foreground/90 max-w-2xl mx-auto">
-          The Confraternity of Augustinian Recollect Altar Servers of the Minor Basilica and Parish of San Sebastian – Shrine of Our Lady of Mt. Carmel.
+          The Confraternity of Augustinian Recollect Altar Servers of the Minor
+          Basilica and Parish of San Sebastian – Shrine of Our Lady of Mt.
+          Carmel.
         </p>
 
         <div className="mt-8 flex items-center justify-center gap-3">
-          <a href="#about"><Button variant="hero" size="lg">Learn More</Button></a>
-          <a href="#join"><Button variant="outline" size="lg">Join Us</Button></a>
+          <a href="#about">
+            <Button variant="hero" size="lg">
+              Learn More
+            </Button>
+          </a>
+          <a href="#join">
+            <Button variant="outline" size="lg">
+              Join Us
+            </Button>
+          </a>
         </div>
       </div>
     </section>
