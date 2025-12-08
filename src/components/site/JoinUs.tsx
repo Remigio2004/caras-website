@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import joinImg from "../../assets/Recruitment.png";
+import { TermsPrivacyModal } from "@/components/site/TermsPrivacyModal";
 
 function isValidPhone(phone = "") {
   return /^[0-9\-\+\(\) ]{7,}$/.test(phone.trim());
@@ -26,18 +27,32 @@ function getAgeFromBirthdate(birthdate: string): number {
 export default function JoinUs() {
   const [loading, setLoading] = useState(false);
   const [under18, setUnder18] = useState(false);
-  const [age, setAge] = useState<number | "">(""); // NEW
-  const [childAge, setChildAge] = useState<number | "">(""); // NEW
+  const [age, setAge] = useState<number | "">("");
+  const [childAge, setChildAge] = useState<number | "">("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
 
+    // explicit consent guard
+    if (!consentChecked) {
+      toast({
+        title: "Consent Required",
+        description:
+          "Please read the privacy notice and tick the box to proceed.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
     const data = new FormData(e.currentTarget);
     const payload = Object.fromEntries(data.entries());
 
-    // override age fields with computed state (para siguradong tama)
+    // override age fields with computed state
     if (!under18) {
       payload.age = age === "" ? "" : String(age);
     } else {
@@ -236,6 +251,7 @@ export default function JoinUs() {
         setUnder18(false);
         setAge("");
         setChildAge("");
+        setConsentChecked(false);
       }, 800);
     }
   }
@@ -387,7 +403,34 @@ export default function JoinUs() {
               </>
             )}
 
-            <div className="flex gap-3 pt-2">
+            {/* Consent + View Terms */}
+            <div className="flex flex-col gap-2 pt-2 text-sm">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  name="privacy-consent"
+                  required
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                  className="mt-1 h-4 w-4 border-emerald-400 text-emerald-700"
+                />
+                <span className="text-muted-foreground">
+                  I have read and agree to the Terms & Conditions and Privacy
+                  Notice of CARAS de San Sebastian, and I consent to the
+                  collection and processing of my/our personal data for altar
+                  server recruitment and ministry coordination.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTerms(true)}
+                className="self-start text-xs font-medium text-emerald-800 hover:text-emerald-900 underline underline-offset-4"
+              >
+                View Terms & Privacy
+              </button>
+            </div>
+
+            <div className="flex gap-3 pt-4">
               <Button type="submit" variant="gold" disabled={loading}>
                 {loading ? "Submitting..." : "Submit"}
               </Button>
@@ -406,6 +449,8 @@ export default function JoinUs() {
           </form>
         </div>
       </div>
+
+      <TermsPrivacyModal open={showTerms} onOpenChange={setShowTerms} />
     </section>
   );
 }
