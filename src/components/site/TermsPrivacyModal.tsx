@@ -212,13 +212,6 @@ export function TermsPrivacyModal({
             </section>
           </div>
         </ScrollArea>
-
-        {/* Fixed footer inside card */}
-        <div className="mt-3 pt-3 border-t border-emerald-100 flex justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   );
