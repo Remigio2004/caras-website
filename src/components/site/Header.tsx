@@ -10,7 +10,7 @@ const nav = [
   { id: "home", label: "Home" },
   { id: "about", label: "About Us" },
   { id: "parish", label: "Our Parish" },
-  { id: "ministries", label: "Ministries" },
+  { id: "ministries", label: "Services" },
   { id: "events", label: "Events" },
   { id: "gallery", label: "Gallery" },
   { id: "join", label: "Join Us" },
