@@ -1,0 +1,33 @@
+[33m009f0be[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m setup configuration in Imagekit
+[33m57912c3[m update Join us
+[33m0049fe6[m added History
+[33mabfae25[m added CARAS History
+[33m0ba7230[m added parish clergy
+[33ma298d5f[m added terms and privacy
+[33m395a55e[m added terms and privacy
+[33mdec2c1b[m update padding
+[33m3a24814[m automate age field
+[33mc571edf[m add confirmation message sa pag delete
+[33m060ed79[m fix 404 error when reloads
+[33md0c5055[m added CARAS bot
+[33m520c04d[m added CARAS bot
+[33mcd54deb[m fixed import
+[33m2cd59fa[m final
+[33m299e2a5[m update Export to Excel button
+[33m8b59c85[m draft
+[33mf26cb7e[m fixed dashboard stats
+[33mef0c6c8[m fixed bug white space if reload
+[33m786ba98[m update Event Management
+[33mad6e5f6[m update Gallery, added albums
+[33mdc16cff[m updated Profile Setting
+[33m3f9b14c[m updated Ministries
+[33m8f12d50[m Updated Gallery Management
+[33m28518db[m latest
+[33m18ed89d[m responsive Application and Membership View
+[33m5bee851[m Mobile Responsive Application View and Membership View
+[33mfcbcab2[m update sideNAv
+[33mdeca581[m added loading screen and update Membership and Application View
+[33m6f72a01[m update Application View, Pending Application  and Membership View
+[33md72a4f7[m integrate supabase sa backend Application and Members
+[33m6675442[m Update useAuth hook and Login page
+[33medfe2c3[m Initial commit

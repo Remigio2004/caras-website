@@ -71,21 +71,37 @@ export default function GalleryView() {
     album_description: string
   ) => {
     const name = file.name.split(".").slice(0, -1).join(".") || "image";
-    const ext = file.name.split(".").pop();
     const safeName = name.replace(/[^a-zA-Z0-9-_]/g, "_");
-    const path = `uploads/${Date.now()}-${safeName}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, file);
-    if (uploadError) throw uploadError;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append(
+      "upload_preset",
+      import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string
+    );
+    formData.append("folder", `caras-gallery/${album || "General"}`);
+    formData.append("public_id", safeName);
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("Cloudinary upload error", err);
+      throw new Error("Cloudinary upload failed");
+    }
+
+    const data = (await res.json()) as { secure_url: string };
 
     const imageData = {
-      image_url: publicUrl,
+      image_url: data.secure_url,
       alt_text: name,
       name,
       album,
@@ -95,6 +111,7 @@ export default function GalleryView() {
     const { error: insertError } = await supabase
       .from("gallery")
       .insert(imageData);
+
     if (insertError) throw insertError;
   };
 
