@@ -25,7 +25,7 @@ export default function Hero() {
   return (
     <section
       id="home"
-      className="relative min-h-[70vh] flex items-center justify-center overflow-hidden"
+      className="relative min-h-[90vh] flex items-center justify-center overflow-hidden"
     >
       {/* Image Fade Slideshow */}
       <AnimatePresence>

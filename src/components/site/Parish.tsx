@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,25 +22,8 @@ const CATEGORY_LABELS: Record<Clergy["category"], string> = {
 };
 
 export default function Parish() {
-  const ref = useRef<HTMLDivElement>(null);
   const [clergy, setClergy] = useState<Clergy[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const el = ref.current;
-    if (!el) return;
-
-    const handleScroll = () => {
-      const y = window.scrollY || window.pageYOffset;
-      // adjust 0.15 kung gusto mo mas malakas/mahina
-      el.style.backgroundPosition = `center ${-y * 0.15}px`;
-    };
-
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   useEffect(() => {
     const fetchClergy = async () => {
@@ -64,7 +47,6 @@ export default function Parish() {
   return (
     <section
       id="parish"
-      ref={ref}
       className="relative py-24 bg-fixed bg-cover bg-center mb-12"
       style={{
         backgroundImage:

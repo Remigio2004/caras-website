@@ -162,7 +162,7 @@ export default function About() {
             </h3>
 
             <div className="space-y-6 text-muted-foreground leading-relaxed text-justify">
-              <p>
+              <p className="indent-8">
                 On <strong>September 8, 1985</strong>, the{" "}
                 <em>
                   Confraternity of Augustinian Recollect Altar Servers (CARAS)
@@ -175,7 +175,7 @@ export default function About() {
                 service, and devotion.
               </p>
 
-              <p>
+              <p className="indent-8">
                 From its earliest days, CARAS sought to provide structure and
                 spiritual formation for young altar servers, ensuring that their
                 role in assisting at the altar was not only functional but
@@ -185,16 +185,16 @@ export default function About() {
                 who offered their time and talent in liturgical celebrations.
               </p>
 
-              <p>
+              <p className="indent-8">
                 Over the years, CARAS expanded beyond San Sebastian Basilica,
                 reaching other Augustinian Recollect institutions and parishes
                 across the country. Its members have become familiar faces in
                 Eucharistic celebrations, vocation festivals, and national
-                church events—always carrying the values of{" "}
+                church events—always carrying the values of
                 <strong>service, humility, and devotion</strong>.
               </p>
 
-              <p>
+              <p className="indent-8">
                 Today, CARAS continues to inspire generations of altar servers,
                 reminding them that their ministry is more than just assisting
                 at Mass—it is a calling to live out the Gospel through faithful

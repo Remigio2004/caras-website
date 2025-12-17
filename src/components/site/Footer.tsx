@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import logo from "@/assets/logo-main.png";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -23,11 +24,15 @@ export default function Footer() {
   return (
     <footer className="border-t py-10">
       <div className="container grid gap-6 md:grid-cols-3 items-start">
-        <div>
-          <div className="font-display text-lg">CARAS</div>
-          <p className="text-sm text-muted-foreground">
-            Confraternity of Augustinian Recollect Altar Servers
-          </p>
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="logo" className="h-14 w-auto" />
+
+          <div>
+            <div className="font-display text-xl leading-tight">CARAS</div>
+            <p className="text-sm text-muted-foreground leading-snug">
+              Confraternity of Augustinian Recollect Altar Servers
+            </p>
+          </div>
         </div>
 
         <nav className="grid gap-2 text-sm">
