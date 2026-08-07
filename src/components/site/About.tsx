@@ -191,7 +191,7 @@ export default function About() {
                 across the country. Its members have become familiar faces in
                 Eucharistic celebrations, vocation festivals, and national
                 church events—always carrying the values of
-                <strong>service, humility, and devotion</strong>.
+                <strong> service, humility, and devotion</strong>.
               </p>
 
               <p className="indent-8">
