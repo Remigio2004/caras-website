@@ -14,8 +14,11 @@ type Event = {
   narrative: string | null;
 };
 
+const PAGE_SIZE = 6; // 2 rows x 3 columns
+
 export default function Events() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const navigate = useNavigate();
 
   const { data: events, isLoading } = useQuery({
@@ -35,12 +38,31 @@ export default function Events() {
     .sort(
       (a, b) =>
         (b.featured ? 1 : 0) - (a.featured ? 1 : 0) ||
-        a.date.localeCompare(b.date)
+        b.date.localeCompare(a.date)
     );
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+
+  const pageEvents = sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+  const scrollToEvents = () => {
+    document
+      .getElementById("events")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handlePrevClick = () => {
+    setPage((p) => Math.max(p - 1, 0));
+    setTimeout(scrollToEvents, 50);
+  };
+
+  const handleNextClick = () => {
+    setPage((p) => Math.min(p + 1, totalPages - 1));
+    setTimeout(scrollToEvents, 50);
+  };
 
   const handleOpenNarrative = (id: string) => {
     setSelectedId(id);
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" }); // or "smooth"
     navigate(`/event/${id}`);
   };
 
@@ -57,10 +79,10 @@ export default function Events() {
           </div>
         ) : (
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((ev) => (
+            {pageEvents.map((ev) => (
               <div
                 key={ev.id}
-                className={`rounded-lg border bg-card p-5 shadow-sm ${
+                className={`flex flex-col h-full rounded-lg border bg-card p-5 shadow-sm ${
                   ev.featured ? "ring-2 ring-[hsl(var(--brand-gold))]" : ""
                 }`}
               >
@@ -74,7 +96,7 @@ export default function Events() {
                   </p>
                 )}
 
-                <div className="mt-3">
+                <div className="mt-auto pt-3">
                   <Button
                     variant="link"
                     className="px-0"
@@ -85,6 +107,28 @@ export default function Events() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {sorted.length > PAGE_SIZE && (
+          <div className="flex justify-center gap-4 mt-10">
+            <button
+              onClick={handlePrevClick}
+              disabled={page === 0}
+              className="px-4 py-2 rounded-md border bg-muted-foreground/10 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 font-semibold text-muted-foreground">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              onClick={handleNextClick}
+              disabled={page + 1 === totalPages}
+              className="px-4 py-2 rounded-md border bg-muted-foreground/10 disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
