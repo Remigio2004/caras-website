@@ -33,7 +33,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Star } from "lucide-react";
+import { Plus, Edit, Trash2, Star, X } from "lucide-react";
 import { format } from "date-fns";
 
 interface Event {
@@ -43,38 +43,54 @@ interface Event {
   summary: string | null;
   banner_url: string | null;
   narrative_image_url: string | null;
+  narrative_images: string[] | null;
   featured: boolean;
   narrative: string | null;
   created_at: string;
 }
 
+const PAGE_SIZE = 5;
+
 export default function EventsView() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [narrativeImages, setNarrativeImages] = useState<string[]>([""]);
+  const [page, setPage] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["events"],
+  const { data, isLoading } = useQuery({
+    queryKey: ["events", page],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("events")
-        .select("*")
-        .order("date", { ascending: false });
+        .select("*", { count: "exact" })
+        .order("date", { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
       if (error) throw error;
-      return data as Event[];
+      return { rows: data as Event[], total: count ?? 0 };
     },
+    keepPreviousData: true,
   });
 
+  const events = data?.rows || [];
+  const total = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const createEventMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
+    mutationFn: async ({
+      formData,
+      images,
+    }: {
+      formData: FormData;
+      images: string[];
+    }) => {
       const eventData = {
         title: formData.get("title") as string,
         date: formData.get("date") as string,
         summary: (formData.get("summary") as string) || null,
         banner_url: (formData.get("banner_url") as string) || null,
-        narrative_image_url:
-          (formData.get("narrative_image_url") as string) || null,
+        narrative_images: images,
         featured: formData.get("featured") === "true",
         narrative: (formData.get("narrative") as string) || null,
       };
@@ -163,6 +179,10 @@ export default function EventsView() {
         ?.checked ?? false;
     formData.set("featured", featuredChecked ? "true" : "false");
 
+    const filteredImages = narrativeImages
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+
     if (editingEvent) {
       updateEventMutation.mutate({
         id: editingEvent.id,
@@ -171,28 +191,33 @@ export default function EventsView() {
           date: formData.get("date") as string,
           summary: (formData.get("summary") as string) || null,
           banner_url: (formData.get("banner_url") as string) || null,
-          narrative_image_url:
-            (formData.get("narrative_image_url") as string) || null,
+          narrative_images: filteredImages,
           featured: formData.get("featured") === "true",
           narrative: (formData.get("narrative") as string) || null,
         },
       });
     } else {
-      createEventMutation.mutate(formData);
+      createEventMutation.mutate({ formData, images: filteredImages });
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-semibold">
-          Events Management
-        </h2>
+        <div>
+          <h2 className="text-2xl font-display font-semibold">
+            Events Management
+          </h2>
+          <p className="text-xs md:text-sm text-muted-foreground">
+            {total} total events
+          </p>
+        </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button
               onClick={() => {
                 setEditingEvent(null);
+                setNarrativeImages([""]);
               }}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -244,6 +269,17 @@ export default function EventsView() {
                       defaultValue={editingEvent?.summary || ""}
                     />
                   </div>
+
+                  <div>
+                    <Label htmlFor="narrative">Narrative Report</Label>
+                    <Textarea
+                      id="narrative"
+                      name="narrative"
+                      rows={5}
+                      placeholder="Full narrative for this event."
+                      defaultValue={editingEvent?.narrative || ""}
+                    />
+                  </div>
                 </div>
 
                 {/* Right column */}
@@ -260,27 +296,48 @@ export default function EventsView() {
                   </div>
 
                   <div>
-                    <Label htmlFor="narrative_image_url">
-                      Narrative Image URL
-                    </Label>
-                    <Input
-                      id="narrative_image_url"
-                      name="narrative_image_url"
-                      type="url"
-                      placeholder="https://..."
-                      defaultValue={editingEvent?.narrative_image_url || ""}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="narrative">Narrative Report</Label>
-                    <Textarea
-                      id="narrative"
-                      name="narrative"
-                      rows={5}
-                      placeholder="Full narrative for this event."
-                      defaultValue={editingEvent?.narrative || ""}
-                    />
+                    <Label>Narrative Images</Label>
+                    <div className="space-y-2">
+                      {narrativeImages.map((url, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            type="url"
+                            placeholder="https://..."
+                            value={url}
+                            onChange={(e) => {
+                              const updated = [...narrativeImages];
+                              updated[index] = e.target.value;
+                              setNarrativeImages(updated);
+                            }}
+                          />
+                          {narrativeImages.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNarrativeImages(
+                                  narrativeImages.filter((_, i) => i !== index)
+                                );
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() =>
+                        setNarrativeImages([...narrativeImages, ""])
+                      }
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Image
+                    </Button>
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
@@ -304,7 +361,7 @@ export default function EventsView() {
 
       {isLoading ? (
         <div className="text-center py-8">Loading events...</div>
-      ) : !events || events.length === 0 ? (
+      ) : events.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <p className="text-muted-foreground">No events yet</p>
         </div>
@@ -351,6 +408,14 @@ export default function EventsView() {
                       size="sm"
                       onClick={() => {
                         setEditingEvent(event);
+                        setNarrativeImages(
+                          event.narrative_images &&
+                            event.narrative_images.length > 0
+                            ? event.narrative_images
+                            : event.narrative_image_url
+                            ? [event.narrative_image_url]
+                            : [""]
+                        );
                         setIsDialogOpen(true);
                       }}
                     >
@@ -393,6 +458,32 @@ export default function EventsView() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/40">
+            <span className="text-xs text-muted-foreground">
+              Page {page + 1} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page + 1 >= totalPages}
+                onClick={() =>
+                  setPage((p) => (p + 1 < totalPages ? p + 1 : p))
+                }
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

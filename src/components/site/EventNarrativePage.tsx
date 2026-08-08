@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ type Event = {
   summary: string | null;
   banner_url: string | null;
   narrative_image_url: string | null;
+  narrative_images: string[] | null;
   narrative: string | null;
 };
 
@@ -32,7 +33,7 @@ export default function EventNarrativePage() {
       const { data, error } = await supabase
         .from("events")
         .select(
-          "id,title,date,summary,banner_url,narrative_image_url,narrative"
+          "id,title,date,summary,banner_url,narrative_image_url,narrative_images,narrative"
         )
         .eq("id", id)
         .maybeSingle();
@@ -66,6 +67,12 @@ export default function EventNarrativePage() {
     currentIndex >= 0 && currentIndex < sortedList.length - 1
       ? sortedList[currentIndex + 1]
       : null;
+
+  const [imageIndex, setImageIndex] = useState(0);
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [id]);
 
   useEffect(() => {
     document
@@ -139,15 +146,44 @@ export default function EventNarrativePage() {
             </div>
           </header>
 
-          {event.narrative_image_url && (
-            <div className="mt-8 w-full flex justify-center">
-              <img
-                src={event.narrative_image_url}
-                alt={event.title}
-                className="max-h-[400px] w-auto object-contain rounded-md shadow-sm"
-              />
-            </div>
-          )}
+          {(() => {
+            const images =
+              event.narrative_images && event.narrative_images.length > 0
+                ? event.narrative_images
+                : event.narrative_image_url
+                ? [event.narrative_image_url]
+                : [];
+
+            if (images.length === 0) return null;
+
+            return (
+              <div className="mt-8 w-full flex flex-col items-center">
+                <img
+                  src={images[imageIndex] ?? images[0]}
+                  alt={event.title}
+                  className="max-h-[400px] w-auto object-contain rounded-md shadow-sm"
+                />
+
+                {images.length > 1 && (
+                  <div className="mt-4 flex items-center gap-2">
+                    {images.map((_, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setImageIndex(index)}
+                        aria-label={`Show image ${index + 1}`}
+                        className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                          index === imageIndex
+                            ? "bg-primary"
+                            : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <article className="mt-8">
             <div className="text-justify text-[15px] leading-relaxed whitespace-pre-line">
