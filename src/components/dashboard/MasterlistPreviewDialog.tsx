@@ -30,12 +30,14 @@ interface MasterlistPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   members: Member[];
+  groupByBatch?: boolean;
 }
 
 export default function MasterlistPreviewDialog({
   open,
   onOpenChange,
   members,
+  groupByBatch = true,
 }: MasterlistPreviewDialogProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -66,8 +68,6 @@ export default function MasterlistPreviewDialog({
           backgroundColor: "#ffffff",
         });
 
-        const imgData = canvas.toDataURL("image/png");
-
         // A4-ish landscape-friendly sizing based on the captured canvas ratio
         const pdf = new jsPDF({
           orientation: "landscape",
@@ -79,22 +79,58 @@ export default function MasterlistPreviewDialog({
         const pageHeight = pdf.internal.pageSize.getHeight();
 
         const marginX = 14.17; // 0.5cm converted to points (left/right)
-        const marginY = 8.5; // 0.3cm converted to points (top/bottom)
+        const marginY = 7; // 0.3cm converted to points (top/bottom)
         const imgWidth = pageWidth - marginX * 2;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
         const usableHeight = pageHeight - marginY * 2;
 
-        let heightLeft = imgHeight;
-        let position = marginY;
+        // canvas pixels per PDF point, based on the printed width
+        const pxPerPt = canvas.width / imgWidth;
+        // how many source canvas pixels make up one page's usable height
+        const pageHeightPx = Math.floor(usableHeight * pxPerPt);
 
-        pdf.addImage(imgData, "PNG", marginX, position, imgWidth, imgHeight);
-        heightLeft -= usableHeight;
+        let renderedPx = 0;
+        let firstPage = true;
 
-        while (heightLeft > 0) {
-          position = heightLeft - imgHeight + marginY;
-          pdf.addPage();
-          pdf.addImage(imgData, "PNG", marginX, position, imgWidth, imgHeight);
-          heightLeft -= usableHeight;
+        while (renderedPx < canvas.height) {
+          const sliceHeightPx = Math.min(
+            pageHeightPx,
+            canvas.height - renderedPx
+          );
+
+          // crop this page's exact slice out of the full canvas (no overlap)
+          const pageCanvas = document.createElement("canvas");
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+          const ctx = pageCanvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(
+              canvas,
+              0,
+              renderedPx,
+              canvas.width,
+              sliceHeightPx,
+              0,
+              0,
+              canvas.width,
+              sliceHeightPx
+            );
+          }
+
+          const sliceImgData = pageCanvas.toDataURL("image/png");
+          const sliceHeightPt = sliceHeightPx / pxPerPt;
+
+          if (!firstPage) pdf.addPage();
+          pdf.addImage(
+            sliceImgData,
+            "PNG",
+            marginX,
+            marginY,
+            imgWidth,
+            sliceHeightPt
+          );
+
+          renderedPx += sliceHeightPx;
+          firstPage = false;
         }
 
         const blob = pdf.output("blob");
@@ -108,7 +144,7 @@ export default function MasterlistPreviewDialog({
 
     generate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, members]);
+  }, [open, members, groupByBatch]);
 
   const handleDownload = () => {
     if (!pdfBlob) return;
@@ -147,9 +183,6 @@ export default function MasterlistPreviewDialog({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
             <Button onClick={handleDownload} disabled={!pdfBlob}>
               <Download className="w-4 h-4 mr-2" />
               Download
@@ -162,7 +195,11 @@ export default function MasterlistPreviewDialog({
       {open &&
         createPortal(
           <div style={{ position: "fixed", left: "-9999px", top: 0 }}>
-            <MasterlistPrintLayout ref={printRef} members={members} />
+            <MasterlistPrintLayout
+              ref={printRef}
+              members={members}
+              groupByBatch={groupByBatch}
+            />
           </div>,
           document.body
         )}

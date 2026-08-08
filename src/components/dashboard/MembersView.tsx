@@ -18,6 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search, Phone, Download, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -37,8 +44,36 @@ interface Member {
 
 const PAGE_SIZE = 10;
 
+type SortOption = "batch" | "age" | "name" | "birthday";
+
+function calculateAge(birthday: string): number {
+  if (!birthday) return 0;
+  const birthDate = new Date(birthday);
+  if (isNaN(birthDate.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+  return age;
+}
+
+// Sort key for "Birthday" filter: calendar order (January -> December),
+// ignoring the year completely so it cycles Jan 1 through Dec 31.
+function getMonthDayKey(birthday: string): number {
+  if (!birthday) return 9999;
+  const d = new Date(birthday);
+  if (isNaN(d.getTime())) return 9999;
+  return d.getMonth() * 100 + d.getDate();
+}
+
 export default function MembersView() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("batch");
   const [page, setPage] = useState(0);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState<Omit<Member, "id" | "created_at">>({
@@ -58,14 +93,55 @@ export default function MembersView() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["members", page, searchTerm],
+    queryKey: ["members", page, searchTerm, sortBy],
     queryFn: async () => {
+      // "Birthday" = calendar month/day cycle (Jan -> Dec), not chronological
+      // by full date/year. Postgres can't express that via a plain column
+      // .order(), so we fetch matching rows, sort by month/day in JS, then
+      // paginate locally.
+      if (sortBy === "birthday") {
+        let query = supabase.from("members").select("*");
+
+        if (searchTerm.trim()) {
+          const term = `%${searchTerm.trim()}%`;
+          query = query.or(
+            `full_name.ilike.${term},address.ilike.${term},contact_number.ilike.${term}`
+          );
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const sorted = (data as Member[])
+          .slice()
+          .sort(
+            (a, b) => getMonthDayKey(a.birthday) - getMonthDayKey(b.birthday)
+          );
+
+        const total = sorted.length;
+        const rows = sorted.slice(
+          page * PAGE_SIZE,
+          page * PAGE_SIZE + PAGE_SIZE
+        );
+        return { rows, total };
+      }
+
       let query = supabase
         .from("members")
-        .select("*", { count: "exact" })
-        .order("batch", { ascending: true })
-        .order("full_name", { ascending: true })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .select("*", { count: "exact" });
+
+      if (sortBy === "name") {
+        query = query.order("full_name", { ascending: true });
+      } else if (sortBy === "age") {
+        // earliest birthday first = oldest members first
+        query = query.order("birthday", { ascending: true });
+      } else {
+        query = query
+          .order("batch", { ascending: true })
+          .order("full_name", { ascending: true });
+      }
+
+      query = query.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (searchTerm.trim()) {
         const term = `%${searchTerm.trim()}%`;
@@ -138,11 +214,18 @@ export default function MembersView() {
 
   const handleExportClick = async () => {
     try {
-      let query = supabase
-        .from("members")
-        .select("*")
-        .order("batch", { ascending: true })
-        .order("full_name", { ascending: true });
+      let query = supabase.from("members").select("*");
+
+      if (sortBy === "name") {
+        query = query.order("full_name", { ascending: true });
+      } else if (sortBy === "age") {
+        query = query.order("birthday", { ascending: true });
+      } else if (sortBy !== "birthday") {
+        query = query
+          .order("batch", { ascending: true })
+          .order("full_name", { ascending: true });
+      }
+      // "birthday" sort is applied client-side below (month/day cycle)
 
       if (searchTerm.trim()) {
         const term = `%${searchTerm.trim()}%`;
@@ -171,11 +254,15 @@ export default function MembersView() {
         return;
       }
 
-      const membersForExport = (data as Member[]).slice();
-      membersForExport.sort((a, b) => {
-        if (a.batch !== b.batch) return a.batch - b.batch;
-        return a.full_name.localeCompare(b.full_name);
-      });
+      const membersForExport =
+        sortBy === "birthday"
+          ? (data as Member[])
+              .slice()
+              .sort(
+                (a, b) =>
+                  getMonthDayKey(a.birthday) - getMonthDayKey(b.birthday)
+              )
+          : (data as Member[]);
 
       setExportMembers(membersForExport);
       setPreviewOpen(true);
@@ -205,13 +292,10 @@ export default function MembersView() {
 
   const handleSave = () => {
     if (!selectedMember) return;
-    if (
-      Number.isNaN(Number(editForm.age)) ||
-      Number.isNaN(Number(editForm.batch))
-    ) {
+    if (Number.isNaN(Number(editForm.batch))) {
       toast({
         title: "Invalid input",
-        description: "Age and batch must be numbers.",
+        description: "Batch must be a number.",
         variant: "destructive",
       });
       return;
@@ -220,7 +304,7 @@ export default function MembersView() {
       id: selectedMember.id,
       full_name: editForm.full_name,
       birthday: editForm.birthday,
-      age: Number(editForm.age),
+      age: calculateAge(editForm.birthday),
       address: editForm.address,
       guardian: editForm.guardian,
       contact_number: editForm.contact_number,
@@ -251,6 +335,23 @@ export default function MembersView() {
               className="pl-10"
             />
           </div>
+          <Select
+            value={sortBy}
+            onValueChange={(value) => {
+              setPage(0);
+              setSortBy(value as SortOption);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="batch">Default (Batch)</SelectItem>
+              <SelectItem value="age">Age</SelectItem>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="birthday">Birthday</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             onClick={handleExportClick}
@@ -306,7 +407,7 @@ export default function MembersView() {
                           {format(new Date(member.birthday), "MMM dd, yyyy")}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {member.age}
+                          {calculateAge(member.birthday)}
                         </TableCell>
                         <TableCell className="max-w-[220px] truncate">
                           {member.address}
@@ -410,17 +511,12 @@ export default function MembersView() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-medium">Age</p>
-                  <Input
-                    type="number"
-                    value={editForm.age}
-                    onChange={(e) =>
-                      setEditForm((f) => ({
-                        ...f,
-                        age: Number(e.target.value),
-                      }))
-                    }
-                  />
+                  <p className="text-xs font-medium">Age (auto-computed)</p>
+                  <p className="text-sm text-muted-foreground border rounded-md px-3 py-2 bg-muted/40">
+                    {editForm.birthday
+                      ? `${calculateAge(editForm.birthday)} years old`
+                      : "—"}
+                  </p>
                 </div>
               </div>
               <div>
@@ -529,6 +625,7 @@ export default function MembersView() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         members={exportMembers}
+        groupByBatch={sortBy === "batch"}
       />
     </div>
   );

@@ -1,6 +1,51 @@
 import caras from "../../assets/caras-1.jfif";
 import officers from "../../assets/officers.png";
 
+const currentYear = new Date().getFullYear();
+
+const officersList = [
+  {
+    position: "President",
+    name: "Arturo Cerillo",
+    yearStarted: 2017,
+  },
+  {
+    position: "Vice President",
+    name: "Carlo San Miguel",
+    yearStarted: 2019,
+  },
+  {
+    position: "Treasurer",
+    name: "Mario Ledres",
+    yearStarted: 2016,
+  },
+  {
+    position: "Media Relation Officer",
+    name: "Mark Adrian Remigio",
+    yearStarted: 2018,
+  },
+  {
+    position: "Head Committee on Training and Development",
+    name: "John Patrick Flores",
+    yearStarted: 2024,
+  },
+  {
+    position: "Assistant Committee on Training and Development",
+    name: "Matthew Gavin Vidallon",
+    yearStarted: 2023,
+  },
+  {
+    position: "Head Committee on Liturgical Services",
+    name: "Rainier Buison",
+    yearStarted: 2019,
+  },
+  {
+    position: "Assistant Committee on Liturgical Services",
+    name: "Glen Ledres",
+    yearStarted: 2016,
+  },
+];
+
 export default function About() {
   return (
     <section
@@ -92,50 +137,20 @@ export default function About() {
                 style={{ borderColor: "hsl(var(--brand-gold))" }}
               >
                 <div className="text-center">
-                  {/* <h4 className="officers italic">Sacristan Mayor</h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Jojo Mecisamente</strong> - 15 years in service
-                  </p> */}
-                  <h4 className="officers italic">President</h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Arturo Cerillo</strong> - 8 years in service
-                  </p>
-                  <h4 className="officers italic">Vice President</h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Carlo San Miguel</strong> - 5 years in service
-                  </p>
-                  <h4 className="officers italic">Treasurer</h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Mario Ledres</strong> - 10 years in service
-                  </p>
-                  <h4 className="officers italic">Media Relation Officer</h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Mark Adrian Remigio</strong> - 6 years in service
-                  </p>
-                  <h4 className="officers italic">
-                    Head Committee on Training and Development
-                  </h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>John Patrick Flores</strong> - 2 years in service
-                  </p>
-                  <h4 className="officers italic">
-                    Assistant Committee on Training and Development
-                  </h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Matthew Gavin Vidallon</strong> - 1 year in service
-                  </p>
-                  <h4 className="officers italic">
-                    Head Committee on Liturgical Services
-                  </h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Rainier Buison</strong> - 3 years in service
-                  </p>
-                  <h4 className="officers italic">
-                    Assistant Committee on Liturgical Services
-                  </h4>
-                  <p className="text-sm text-muted-foreground mb-[.5rem]">
-                    <strong>Glen Ledres</strong> - 10 years in service
-                  </p>
+                  {officersList.map((officer) => {
+                    const yearsInService = currentYear - officer.yearStarted;
+                    return (
+                      <div key={officer.name}>
+                        <h4 className="officers italic">
+                          {officer.position}
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-[.5rem]">
+                          <strong>{officer.name}</strong> - {yearsInService}{" "}
+                          {yearsInService === 1 ? "year" : "years"} in service
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

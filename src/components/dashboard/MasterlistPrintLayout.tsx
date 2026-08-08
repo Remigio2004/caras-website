@@ -16,11 +16,12 @@ interface Member {
 
 interface MasterlistPrintLayoutProps {
   members: Member[];
+  groupByBatch?: boolean;
 }
 
 // Groups members by batch, preserving the order they're given in (already
 // sorted by batch then full_name upstream).
-function groupByBatch(members: Member[]) {
+function groupMembersByBatch(members: Member[]) {
   const groups: { batch: number; rows: Member[] }[] = [];
   for (const m of members) {
     const last = groups[groups.length - 1];
@@ -47,13 +48,44 @@ function formatBirthday(value: string) {
   }
 }
 
+function calculateAge(birthday: string): number {
+  if (!birthday) return 0;
+  const birthDate = new Date(birthday);
+  if (isNaN(birthDate.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+  return age;
+}
+
+// Sort key for "Birthday" filter: calendar order (January -> December),
+// ignoring the year completely so it cycles Jan 1 through Dec 31.
+function getMonthDayKey(birthday: string): number {
+  if (!birthday) return 9999;
+  const d = new Date(birthday);
+  if (isNaN(d.getTime())) return 9999;
+  return d.getMonth() * 100 + d.getDate();
+}
+
 // This component renders the masterlist exactly as it should look on the
 // generated PDF. It's meant to be rendered off-screen and captured with
 // html2canvas, so all sizing here is in fixed pixels (not responsive) to
 // match a consistent PDF page.
 const MasterlistPrintLayout = forwardRef<HTMLDivElement, MasterlistPrintLayoutProps>(
-  ({ members }, ref) => {
-    const groups = groupByBatch(members);
+  ({ members, groupByBatch = true }, ref) => {
+    // When grouping by batch, rows are split into per-batch groups with a
+    // blank spacer row between them. When a filter/sort other than "Batch"
+    // is active, we render everything as one flat group so no blank rows
+    // appear between (now-mixed) batches.
+    const groups = groupByBatch
+      ? groupMembersByBatch(members)
+      : [{ batch: 0, rows: members }];
 
     return (
       <div
@@ -73,19 +105,20 @@ const MasterlistPrintLayout = forwardRef<HTMLDivElement, MasterlistPrintLayoutPr
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            justifyContent: "center",
+            gap: "32px",
             paddingBottom: "16px",
           }}
         >
           <img src={logoMain} alt="CARAS Logo" style={{ width: "70px", height: "70px", objectFit: "contain" }} />
-          <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ textAlign: "center" }}>
             <p style={{ fontWeight: 700, fontSize: "17px", margin: 0 }}>
               Minor Basilica and San Sebastian Parish
             </p>
             <p style={{ fontWeight: 700, fontSize: "17px", margin: 0 }}>
               Shrine of Our Lady of Mount Carmel
             </p>
-            <p style={{ fontWeight: 700, fontSize: "17px", margin: 0 }}>
+            <p style={{ fontWeight: 700, fontSize: "17px", margin: "0 0 5px 0" }}>
               Confraternity of Augustinian Recollect Altar Server
             </p>
           </div>
@@ -173,7 +206,9 @@ const MasterlistPrintLayout = forwardRef<HTMLDivElement, MasterlistPrintLayoutPr
                       <div style={cellContentStyle("left")}>{formatBirthday(m.birthday)}</div>
                     </td>
                     <td style={tdStyle("center")}>
-                      <div style={cellContentStyle("center")}>{m.age}</div>
+                      <div style={cellContentStyle("center")}>
+                        {calculateAge(m.birthday)}
+                      </div>
                     </td>
                     <td style={tdStyle("left")}>
                       <div style={cellContentStyle("left")}>{m.address}</div>
