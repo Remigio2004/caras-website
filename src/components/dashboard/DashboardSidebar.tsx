@@ -6,6 +6,7 @@ import {
   Users,
   Calendar,
   Image,
+  Folder,
   User,
   LogOut,
   ChevronLeft,
@@ -46,6 +47,12 @@ const navItems = [
     label: "Gallery",
     icon: Image,
     path: "/dashboard?view=gallery",
+  },
+  {
+    id: "documents",
+    label: "Documents",
+    icon: Folder,
+    path: "/dashboard?view=documents",
   },
   {
     id: "profile",

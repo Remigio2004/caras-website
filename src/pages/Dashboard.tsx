@@ -8,6 +8,7 @@ import ApplicationsView from "@/components/dashboard/ApplicationsView";
 import MembersView from "@/components/dashboard/MembersView";
 import EventsView from "@/components/dashboard/EventsView";
 import GalleryView from "@/components/dashboard/GalleryView";
+import DocumentsView from "@/components/dashboard/DocumentsView";
 import AdminProfileSettings from "@/components/dashboard/AdminProfileSettings";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { Users, Calendar, FileText } from "lucide-react";
@@ -49,6 +50,8 @@ export default function Dashboard() {
         return <EventsView />;
       case "gallery":
         return <GalleryView />;
+      case "documents":
+        return <DocumentsView />;
       case "profile":
         return <AdminProfileSettings />;
       default:
