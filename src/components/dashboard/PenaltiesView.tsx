@@ -425,7 +425,7 @@ export default function PenaltiesView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Member</TableHead>
-                    <TableHead className="text-center">Date Absent</TableHead>
+                    <TableHead className="text-center">Date Penalty</TableHead>
                     <TableHead>Reason</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead className="text-center">Status</TableHead>
@@ -581,8 +581,7 @@ export default function PenaltiesView() {
                 {editingPenalty ? "Edit Penalty" : "Add Penalty"}
               </DialogTitle>
               <DialogDescription>
-                I-record ang araw na hindi nag-serve ang member at ang
-                kaukulang penalty.
+                Record the date of the member's unserved commitment and the corresponding penalty.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -595,7 +594,7 @@ export default function PenaltiesView() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Piliin ang member" />
+                    <SelectValue placeholder="Choose a member" />
                   </SelectTrigger>
                   <SelectContent>
                     {(members || []).map((m) => (
@@ -607,7 +606,7 @@ export default function PenaltiesView() {
                 </Select>
               </div>
               <div>
-                <p className="text-xs font-medium mb-1">Date &amp; Time Absent</p>
+                <p className="text-xs font-medium mb-1">Date &amp; Time Penalty</p>
                 <Input
                   type="datetime-local"
                   value={form.date_absent}
@@ -623,7 +622,7 @@ export default function PenaltiesView() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, reason: e.target.value }))
                   }
-                  placeholder="Optional na dahilan"
+                  placeholder="Provide details of the offense"
                   rows={3}
                 />
               </div>
