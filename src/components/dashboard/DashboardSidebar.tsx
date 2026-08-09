@@ -11,62 +11,84 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import carasLogo from "@/assets/caras-logo.png";
 
+// "roles" controls sidebar visibility per account type. Admin sees
+// everything; Treasurer sees only Penalties + Profile. Add more roles
+// here later if the project ever needs a 3rd account type.
 const navItems = [
   {
     id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/dashboard",
+    roles: ["admin"],
   },
   {
     id: "applications",
     label: "Applications",
     icon: FileText,
     path: "/dashboard?view=applications",
+    roles: ["admin"],
   },
   {
     id: "members",
     label: "Members",
     icon: Users,
     path: "/dashboard?view=members",
+    roles: ["admin"],
   },
   {
     id: "events",
     label: "Events",
     icon: Calendar,
     path: "/dashboard?view=events",
+    roles: ["admin"],
   },
   {
     id: "gallery",
     label: "Gallery",
     icon: Image,
     path: "/dashboard?view=gallery",
+    roles: ["admin"],
   },
   {
     id: "documents",
     label: "Documents",
     icon: Folder,
     path: "/dashboard?view=documents",
+    roles: ["admin"],
+  },
+  {
+    id: "penalties",
+    label: "Penalties",
+    icon: Wallet,
+    path: "/dashboard?view=penalties",
+    roles: ["admin", "treasurer"],
   },
   {
     id: "profile",
     label: "Profile",
     icon: User,
     path: "/dashboard?view=profile",
+    roles: ["admin", "treasurer"],
   },
 ];
 
 export default function DashboardSidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const visibleNavItems = navItems.filter(
+    (item) => !!user?.role && item.roles.includes(user.role)
+  );
 
   const currentView =
     new URLSearchParams(location.search).get("view") || "dashboard";
@@ -106,7 +128,9 @@ export default function DashboardSidebar() {
               <h1 className="font-display text-xl font-bold text-accent">
                 CARAS
               </h1>
-              <p className="text-xs text-primary-foreground/70">Admin Panel</p>
+              <p className="text-xs text-primary-foreground/70">
+                {user?.role === "treasurer" ? "Treasurer Panel" : "Admin Panel"}
+              </p>
             </div>
           </button>
         )}
@@ -129,7 +153,7 @@ export default function DashboardSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = currentView === item.id;
           const Icon = item.icon;
 

@@ -32,6 +32,7 @@ import {
   MoreVertical,
   Pencil,
   X,
+  ArrowUpDown,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -105,6 +106,7 @@ export default function DocumentsView() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [isDropping, setIsDropping] = useState(false);
   const [filePage, setFilePage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
     new Set()
   );
@@ -146,6 +148,7 @@ export default function DocumentsView() {
   const openFolder = (name: string | null) => {
     setSelectedFolder(name);
     setFilePage(1);
+    setSortOrder("asc");
     setSelectedFileIds(new Set());
     setLastSelectedId(null);
   };
@@ -514,10 +517,17 @@ export default function DocumentsView() {
 
   const filesInSelectedFolder = useMemo(() => {
     if (!selectedFolder) return [];
-    return allDocuments.filter(
+    const filtered = allDocuments.filter(
       (doc) => (doc.folder || "General") === selectedFolder
     );
-  }, [allDocuments, selectedFolder]);
+    const sorted = [...filtered].sort((a, b) => {
+      const cmp = a.file_name.localeCompare(b.file_name, undefined, {
+        sensitivity: "base",
+      });
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [allDocuments, selectedFolder, sortOrder]);
 
   const totalFilePages = Math.max(
     1,
@@ -937,6 +947,17 @@ export default function DocumentsView() {
                               >
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add files
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  setSortOrder((prev) =>
+                                    prev === "asc" ? "desc" : "asc"
+                                  );
+                                }}
+                              >
+                                <ArrowUpDown className="w-4 h-4 mr-2" />
+                                {sortOrder === "asc" ? "A-Z" : "Z-A"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={() => setRenamingFolder(folder.name)}

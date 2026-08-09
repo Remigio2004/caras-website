@@ -24,6 +24,10 @@ export default function Header() {
   const navigate = useNavigate();
 
   const scrollToSection = (id: string) => {
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const el = document.getElementById(id);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -39,7 +43,7 @@ export default function Header() {
   };
 
   const NavLinks = () => (
-    <nav className="hidden md:flex items-center gap-6 text-sm">
+    <nav className="hidden xl:flex items-center gap-6 text-sm">
       {nav.map((n) => (
         <button
           key={n.id}
@@ -74,7 +78,7 @@ export default function Header() {
 
         <NavLinks />
 
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden xl:flex items-center gap-2">
           <a
             href="https://www.facebook.com/profile.php?id=61572579823497"
             aria-label="Facebook"
@@ -119,7 +123,7 @@ export default function Header() {
         {/* Mobile */}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="md:hidden">
+            <Button variant="outline" size="icon" className="xl:hidden">
               <Menu />
             </Button>
           </SheetTrigger>

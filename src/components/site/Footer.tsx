@@ -7,6 +7,10 @@ export default function Footer() {
   const navigate = useNavigate();
 
   const scrollToSection = (id: string) => {
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const el = document.getElementById(id);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
