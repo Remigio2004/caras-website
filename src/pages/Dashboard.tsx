@@ -10,6 +10,7 @@ import EventsView from "@/components/dashboard/EventsView";
 import GalleryView from "@/components/dashboard/GalleryView";
 import DocumentsView from "@/components/dashboard/DocumentsView";
 import PenaltiesView from "@/components/dashboard/PenaltiesView";
+import ContributionsView from "@/components/dashboard/ContributionsView";
 import AdminProfileSettings from "@/components/dashboard/AdminProfileSettings";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { Users, Calendar, FileText } from "lucide-react";
@@ -32,26 +33,12 @@ export default function Dashboard() {
   // Treasurer accounts only have access to Penalties + Profile. This is a
   // UX-level guard (sidebar hides other links already) — the RLS policies
   // on each table are still the real security boundary.
-  const treasurerAllowedViews = ["penalties", "profile"];
+  const treasurerAllowedViews = ["penalties", "contributions", "profile"];
   useEffect(() => {
     if (
       !loading &&
       user?.role === "treasurer" &&
       !treasurerAllowedViews.includes(view)
-    ) {
-      navigate("/dashboard?view=penalties", { replace: true });
-    }
-  }, [user, loading, view, navigate]);
-
-  // Secretary accounts only have access to Penalties + Profile. This is a
-  // UX-level guard (sidebar hides other links already) — the RLS policies
-  // on each table are still the real security boundary.
-  const secretaryAllowedViews = ["penalties", "profile"];
-  useEffect(() => {
-    if (
-      !loading &&
-      user?.role === "secretary" &&
-      !secretaryAllowedViews.includes(view)
     ) {
       navigate("/dashboard?view=penalties", { replace: true });
     }
@@ -83,6 +70,8 @@ export default function Dashboard() {
         return <DocumentsView />;
       case "penalties":
         return <PenaltiesView />;
+      case "contributions":
+        return <ContributionsView />;
       case "profile":
         return <AdminProfileSettings />;
       default:

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,13 +27,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
@@ -44,6 +55,8 @@ import {
   Undo2,
   Search,
   MoreVertical,
+  CheckSquare,
+  X,
 } from "lucide-react";
 
 interface Member {
@@ -112,6 +125,10 @@ export default function PenaltiesView() {
     null
   );
   const [paidDateInput, setPaidDateInput] = useState("");
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [bulkMarkPaidOpen, setBulkMarkPaidOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -303,6 +320,92 @@ export default function PenaltiesView() {
     },
   });
 
+  // Apply the same paid_date to every selected penalty in one query.
+  const bulkMarkPaidMutation = useMutation({
+    mutationFn: async ({ ids, paidDate }: { ids: string[]; paidDate: string }) => {
+      if (!canEdit) throw new Error("Not authorized");
+      const { error } = await supabase
+        .from("penalties")
+        .update({ status: "paid", paid_date: paidDate })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_data, { ids }) => {
+      invalidatePenalties();
+      toast({ title: `${ids.length} marked as paid` });
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+      setBulkMarkPaidOpen(false);
+      setPaidDateInput("");
+    },
+    onError: (err) => {
+      console.error("bulk mark paid error:", err);
+      toast({
+        title: "Failed to mark as paid",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Bulk-revert selected penalties back to unpaid.
+  const bulkMarkUnpaidMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!canEdit) throw new Error("Not authorized");
+      const { error } = await supabase
+        .from("penalties")
+        .update({ status: "unpaid", paid_date: null })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_data, ids) => {
+      invalidatePenalties();
+      toast({ title: `${ids.length} marked as unpaid` });
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+    },
+    onError: (err) => {
+      console.error("bulk mark unpaid error:", err);
+      toast({
+        title: "Failed to update",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete several selected penalty rows at once.
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!canEdit) throw new Error("Not authorized");
+      if (!ids.length) throw new Error("No rows selected");
+      const { error } = await supabase
+        .from("penalties")
+        .delete()
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_data, ids) => {
+      invalidatePenalties();
+      toast({
+        title: `${ids.length} record${ids.length !== 1 ? "s" : ""} deleted`,
+      });
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+    },
+    onError: (err) => {
+      console.error("bulk delete error:", err);
+      toast({
+        title: "Failed to delete",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const openAddForm = () => {
     setForm(emptyForm);
     setEditingPenalty(null);
@@ -313,6 +416,83 @@ export default function PenaltiesView() {
     setPenaltyToMarkPaid(penalty);
     setPaidDateInput(toDatetimeLocalValue(new Date().toISOString()));
   };
+
+  const openBulkMarkPaidDialog = () => {
+    setPaidDateInput(toDatetimeLocalValue(new Date().toISOString()));
+    setBulkMarkPaidOpen(true);
+  };
+
+  const toggleSelectMode = () => {
+    setIsSelecting((prev) => {
+      const next = !prev;
+      if (!next) setSelectedIds(new Set());
+      return next;
+    });
+  };
+
+  const handleRowClick = (
+    e: React.MouseEvent,
+    penalty: Penalty,
+    index: number
+  ) => {
+    if (!isSelecting || !canEdit) return;
+
+    if (e.shiftKey && lastSelectedId) {
+      const anchorIndex = paginatedPenalties.findIndex(
+        (p) => p.id === lastSelectedId
+      );
+      if (anchorIndex !== -1) {
+        const [start, end] =
+          anchorIndex < index ? [anchorIndex, index] : [index, anchorIndex];
+        const rangeIds = paginatedPenalties
+          .slice(start, end + 1)
+          .map((p) => p.id);
+        setSelectedIds(new Set(rangeIds));
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(penalty.id)) next.delete(penalty.id);
+        else next.add(penalty.id);
+        return next;
+      });
+      setLastSelectedId(penalty.id);
+      return;
+    }
+
+    setSelectedIds(new Set([penalty.id]));
+    setLastSelectedId(penalty.id);
+  };
+
+  // Ctrl/Cmd+A selects every penalty across ALL pages (not just the current
+  // one); Esc exits selection mode entirely.
+  useEffect(() => {
+    if (!isSelecting || !canEdit) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+      if (isTyping) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setSelectedIds(new Set(filteredPenalties.map((p) => p.id)));
+      }
+      if (e.key === "Escape") {
+        setIsSelecting(false);
+        setSelectedIds(new Set());
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSelecting, canEdit, filteredPenalties]);
 
   const openEditForm = (penalty: Penalty) => {
     setForm({
@@ -359,8 +539,9 @@ export default function PenaltiesView() {
         <div>
           <h2 className="text-xl md:text-2xl font-semibold">Penalties</h2>
           <p className="text-xs md:text-sm text-muted-foreground">
-            {(penalties || []).length} total records •{" "}
-            {formatPeso(totalUnpaidAmount)} total unpaid •{" "}
+            {(penalties || []).length} total records {" "}
+             <br />
+            {formatPeso(totalUnpaidAmount)} total unpaid • {" "}
             {formatPeso(totalPaidAmount)} total collected
           </p>
         </div>
@@ -377,35 +558,143 @@ export default function PenaltiesView() {
               className="pl-10"
             />
           </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setPage(0);
+              setStatusFilter(v as StatusFilter);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="unpaid">Unpaid</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
           {canEdit && (
-            <Button onClick={openAddForm} className="w-full sm:w-auto">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Penalty
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openAddForm}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Penalty
+                </DropdownMenuItem>
+                {(penalties || []).length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={toggleSelectMode}>
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      {isSelecting ? "Cancel Selection" : "Select"}
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
 
-      {/* Status filter tabs */}
-      <Tabs
-        value={statusFilter}
-        onValueChange={(v) => {
-          setPage(0);
-          setStatusFilter(v as StatusFilter);
-        }}
-      >
-        <TabsList className="flex flex-wrap w-full sm:w-auto">
-          <TabsTrigger value="all" className="flex-1 sm:flex-none">
-            All
-          </TabsTrigger>
-          <TabsTrigger value="unpaid" className="flex-1 sm:flex-none">
-            Unpaid
-          </TabsTrigger>
-          <TabsTrigger value="paid" className="flex-1 sm:flex-none">
-            Paid
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {canEdit && isSelecting && (
+        <div className="border rounded-md p-2 bg-muted/30">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                title="Clear selection"
+                onClick={() => {
+                  setIsSelecting(false);
+                  setSelectedIds(new Set());
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} selected`
+                  : "I-click ang mga member (Shift/Ctrl para sa multiple, Ctrl+A para lahat)"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                title="Mark as Paid"
+                onClick={openBulkMarkPaidDialog}
+                disabled={selectedIds.size === 0}
+              >
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                title="Mark as Unpaid"
+                onClick={() =>
+                  bulkMarkUnpaidMutation.mutate(Array.from(selectedIds))
+                }
+                disabled={
+                  selectedIds.size === 0 || bulkMarkUnpaidMutation.isPending
+                }
+              >
+                <Undo2 className="w-4 h-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    title="Delete"
+                    disabled={
+                      selectedIds.size === 0 || bulkDeleteMutation.isPending
+                    }
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Delete {selectedIds.size} record
+                      {selectedIds.size !== 1 ? "s" : ""}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Permanenteng mabubura ang mga penalty record na ito.
+                      Hindi na ito mababawi.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() =>
+                        bulkDeleteMutation.mutate(Array.from(selectedIds))
+                      }
+                      disabled={bulkDeleteMutation.isPending}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-hidden border rounded-lg bg-card flex flex-col">
@@ -430,14 +719,26 @@ export default function PenaltiesView() {
                     <TableHead>Amount</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-center">Paid Date</TableHead>
-                    {canEdit && (
+                    {canEdit && !isSelecting && (
                       <TableHead className="text-right">Actions</TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedPenalties.map((penalty) => (
-                    <TableRow key={penalty.id}>
+                  {paginatedPenalties.map((penalty, index) => (
+                    <TableRow
+                      key={penalty.id}
+                      onClick={(e) => handleRowClick(e, penalty, index)}
+                      className={
+                        isSelecting
+                          ? `cursor-pointer select-none ${
+                              selectedIds.has(penalty.id)
+                                ? "bg-primary/10 hover:bg-primary/10"
+                                : "hover:bg-muted/40"
+                            }`
+                          : ""
+                      }
+                    >
                       <TableCell className="font-medium">
                         {penalty.members?.full_name || "—"}
                       </TableCell>
@@ -480,7 +781,7 @@ export default function PenaltiesView() {
                           "—"
                         )}
                       </TableCell>
-                      {canEdit && (
+                      {canEdit && !isSelecting && (
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -769,6 +1070,68 @@ export default function PenaltiesView() {
                 className="w-full sm:w-auto"
               >
                 {toggleStatusMutation.isPending ? "Saving..." : "Mark as Paid"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Bulk mark as paid dialog */}
+      {canEdit && (
+        <Dialog
+          open={bulkMarkPaidOpen}
+          onOpenChange={(open) => {
+            setBulkMarkPaidOpen(open);
+            if (!open) setPaidDateInput("");
+          }}
+        >
+          <DialogContent className="max-w-sm sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Mark {selectedIds.size} as Paid</DialogTitle>
+              <DialogDescription>
+                Ilalapat ang parehong petsa/oras ng pagbayad sa lahat ng{" "}
+                {selectedIds.size} napiling records.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium mb-1">Paid Date &amp; Time</p>
+                <Input
+                  type="datetime-local"
+                  value={paidDateInput}
+                  onChange={(e) => setPaidDateInput(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setBulkMarkPaidOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!paidDateInput) {
+                    toast({
+                      title: "Missing date",
+                      description: "Ilagay ang petsa at oras ng pagbayad.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  bulkMarkPaidMutation.mutate({
+                    ids: Array.from(selectedIds),
+                    paidDate: new Date(paidDateInput).toISOString(),
+                  });
+                }}
+                disabled={bulkMarkPaidMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {bulkMarkPaidMutation.isPending
+                  ? "Saving..."
+                  : `Mark ${selectedIds.size} as Paid`}
               </Button>
             </div>
           </DialogContent>

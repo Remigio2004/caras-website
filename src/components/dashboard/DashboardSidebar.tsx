@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Wallet,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,6 +64,13 @@ const navItems = [
     icon: Folder,
     path: "/dashboard?view=documents",
     roles: ["admin"],
+  },
+  {
+    id: "contributions",
+    label: "Contributions",
+    icon: Coins,
+    path: "/dashboard?view=contributions",
+    roles: ["admin", "treasurer"],
   },
   {
     id: "penalties",
