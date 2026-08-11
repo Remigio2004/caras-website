@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -22,6 +23,7 @@ import PenaltiesTrendChart from "@/components/dashboard/PenaltiesTrendChart";
 import { useCashFlowTrend } from "@/hooks/useCashFlowTrend";
 import CashFlowTrendChart from "@/components/dashboard/CashFlowTrendChart";
 import FundSourcesChart from "@/components/dashboard/FundSourcesChart";
+import TreasurerReportPreviewDialog from "@/components/dashboard/TreasurerReportPreviewDialog";
 import {
   Users,
   Calendar,
@@ -32,6 +34,7 @@ import {
   Gift,
   TrendingDown,
   AlertCircle,
+  Download,
 } from "lucide-react";
 
 function formatPeso(amount: number) {
@@ -55,6 +58,7 @@ export default function Dashboard() {
     usePenaltiesTrend();
   const { data: cashFlowData, isLoading: cashFlowLoading } =
     useCashFlowTrend();
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
 
   useInactivityLogout(!!user, 30 * 60 * 1000, () => navigate("/login"));
 
@@ -121,13 +125,19 @@ export default function Dashboard() {
           return (
             <>
               {/* Header */}
-              <div className="space-y-1">
-                <h1 className="text-3xl font-display font-bold">
-                  Welcome back!
-                </h1>
-                <p className="text-muted-foreground">
-                  {user.email} • Treasurer
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <h1 className="text-3xl font-display font-bold">
+                    Welcome back!
+                  </h1>
+                  <p className="text-muted-foreground">
+                    {user.email} • Treasurer
+                  </p>
+                </div>
+                <Button onClick={() => setReportPreviewOpen(true)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
               </div>
 
               {/* Treasurer stats */}
@@ -224,6 +234,24 @@ export default function Dashboard() {
                   isLoading={cashFlowLoading}
                 />
               </div>
+
+              <TreasurerReportPreviewDialog
+                open={reportPreviewOpen}
+                onOpenChange={setReportPreviewOpen}
+                stats={
+                  treasurerStats || {
+                    totalFunds: 0,
+                    contributionsCollected: 0,
+                    penaltiesCollected: 0,
+                    donationsCollected: 0,
+                    expensesTotal: 0,
+                    totalOutstanding: 0,
+                  }
+                }
+                contributionsTrend={trendData || []}
+                penaltiesTrend={penaltiesTrendData || []}
+                cashFlow={cashFlowData || []}
+              />
             </>
           );
         }
