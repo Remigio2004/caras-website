@@ -30,12 +30,26 @@ export default function JoinUs() {
   const [age, setAge] = useState<number | "">("");
   const [childAge, setChildAge] = useState<number | "">("");
   const [showTerms, setShowTerms] = useState(false);
+  const [termsRead, setTermsRead] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
+
+    // must open + scroll through the Terms & Privacy modal first
+    if (!termsRead) {
+      toast({
+        title: "Please Read the Terms First",
+        description:
+          "Open the Terms & Conditions and Privacy Notice and scroll to the bottom before submitting.",
+        variant: "destructive",
+      });
+      setShowTerms(true);
+      setLoading(false);
+      return;
+    }
 
     // explicit consent guard
     if (!consentChecked) {
@@ -287,7 +301,7 @@ export default function JoinUs() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm">Name</label>
+                    <label className="text-sm">Full Name</label>
                     <Input name="name" required />
                   </div>
                   <div>
@@ -410,11 +424,12 @@ export default function JoinUs() {
                   type="checkbox"
                   name="privacy-consent"
                   required
+                  disabled={!termsRead}
                   checked={consentChecked}
                   onChange={(e) => setConsentChecked(e.target.checked)}
-                  className="mt-1 h-4 w-4 border-emerald-400 text-emerald-700"
+                  className="mt-1 h-4 w-4 border-emerald-400 text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 />
-                <span className="text-muted-foreground">
+                <span className={!termsRead ? "text-muted-foreground/50" : "text-muted-foreground"}>
                   I have read and agree to the Terms & Conditions and Privacy
                   Notice of CARAS de San Sebastian, and I consent to the
                   collection and processing of my/our personal data for altar
@@ -428,6 +443,11 @@ export default function JoinUs() {
               >
                 View Terms & Privacy
               </button>
+              {!termsRead && (
+                <p className="text-xs text-muted-foreground/70 -mt-1">
+                  Please open and scroll through the Terms & Conditions above before you can agree.
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-4">
@@ -450,7 +470,11 @@ export default function JoinUs() {
         </div>
       </div>
 
-      <TermsPrivacyModal open={showTerms} onOpenChange={setShowTerms} />
+      <TermsPrivacyModal
+        open={showTerms}
+        onOpenChange={setShowTerms}
+        onReadComplete={() => setTermsRead(true)}
+      />
     </section>
   );
 }

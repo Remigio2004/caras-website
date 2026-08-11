@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,12 +12,52 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface TermsPrivacyModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onReadComplete?: () => void;
 }
 
 export function TermsPrivacyModal({
   open,
   onOpenChange,
+  onReadComplete,
 }: TermsPrivacyModalProps) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Marks the terms as "read" once the user scrolls near the bottom of
+  // the modal body. If the content already fits without scrolling, it
+  // counts as read as soon as the modal opens.
+  useEffect(() => {
+    if (!open) return;
+
+    const isNearBottom = (el: Element) => {
+      const { scrollTop, scrollHeight, clientHeight } = el as HTMLDivElement;
+      return (
+        scrollHeight <= clientHeight + 4 ||
+        scrollTop + clientHeight >= scrollHeight - 24
+      );
+    };
+
+    // Native "scroll" events don't bubble, so we listen on the capture
+    // phase at the document level instead of relying on a ref to the
+    // viewport being populated at the exact right time (it lives inside
+    // a Radix Dialog portal, whose mount timing can be a bit fuzzy).
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.hasAttribute?.("data-radix-scroll-area-viewport")) return;
+      if (isNearBottom(target)) onReadComplete?.();
+    };
+
+    document.addEventListener("scroll", handleScroll, true);
+
+    // Also check once right away, in case the content already fits
+    // without needing to scroll at all.
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+    if (viewport && isNearBottom(viewport)) onReadComplete?.();
+
+    return () => document.removeEventListener("scroll", handleScroll, true);
+  }, [open, onReadComplete]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] rounded-xl bg-neutral-50 border border-emerald-100 flex flex-col">
@@ -31,7 +72,7 @@ export function TermsPrivacyModal({
         </DialogHeader>
 
         {/* Scrollable body */}
-        <ScrollArea className="mt-2 pr-3 h-[60vh]">
+        <ScrollArea ref={scrollAreaRef} className="mt-2 pr-3 h-[60vh]">
           <div className="space-y-6 pb-4">
             {/* TERMS */}
             <section>
