@@ -11,9 +11,35 @@ import GalleryView from "@/components/dashboard/GalleryView";
 import DocumentsView from "@/components/dashboard/DocumentsView";
 import PenaltiesView from "@/components/dashboard/PenaltiesView";
 import ContributionsView from "@/components/dashboard/ContributionsView";
+import FinanceView from "@/components/dashboard/FinanceView";
 import AdminProfileSettings from "@/components/dashboard/AdminProfileSettings";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
-import { Users, Calendar, FileText } from "lucide-react";
+import { useTreasurerStats } from "@/hooks/useTreasurerStats";
+import { useContributionsTrend } from "@/hooks/useContributionsTrend";
+import ContributionsTrendChart from "@/components/dashboard/ContributionsTrendChart";
+import { usePenaltiesTrend } from "@/hooks/usePenaltiesTrend";
+import PenaltiesTrendChart from "@/components/dashboard/PenaltiesTrendChart";
+import { useCashFlowTrend } from "@/hooks/useCashFlowTrend";
+import CashFlowTrendChart from "@/components/dashboard/CashFlowTrendChart";
+import FundSourcesChart from "@/components/dashboard/FundSourcesChart";
+import {
+  Users,
+  Calendar,
+  FileText,
+  Wallet,
+  HandCoins,
+  Receipt,
+  Gift,
+  TrendingDown,
+  AlertCircle,
+} from "lucide-react";
+
+function formatPeso(amount: number) {
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -21,6 +47,14 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const view = searchParams.get("view") || "dashboard";
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: treasurerStats, isLoading: treasurerStatsLoading } =
+    useTreasurerStats();
+  const { data: trendData, isLoading: trendLoading } =
+    useContributionsTrend();
+  const { data: penaltiesTrendData, isLoading: penaltiesTrendLoading } =
+    usePenaltiesTrend();
+  const { data: cashFlowData, isLoading: cashFlowLoading } =
+    useCashFlowTrend();
 
   useInactivityLogout(!!user, 30 * 60 * 1000, () => navigate("/login"));
 
@@ -33,7 +67,13 @@ export default function Dashboard() {
   // Treasurer accounts only have access to Penalties + Profile. This is a
   // UX-level guard (sidebar hides other links already) — the RLS policies
   // on each table are still the real security boundary.
-  const treasurerAllowedViews = ["penalties", "contributions", "profile"];
+  const treasurerAllowedViews = [
+    "dashboard",
+    "penalties",
+    "contributions",
+    "finance",
+    "profile",
+  ];
   useEffect(() => {
     if (
       !loading &&
@@ -72,9 +112,122 @@ export default function Dashboard() {
         return <PenaltiesView />;
       case "contributions":
         return <ContributionsView />;
+      case "finance":
+        return <FinanceView />;
       case "profile":
         return <AdminProfileSettings />;
       default:
+        if (user.role === "treasurer") {
+          return (
+            <>
+              {/* Header */}
+              <div className="space-y-1">
+                <h1 className="text-3xl font-display font-bold">
+                  Welcome back!
+                </h1>
+                <p className="text-muted-foreground">
+                  {user.email} • Treasurer
+                </p>
+              </div>
+
+              {/* Treasurer stats */}
+              <div className="grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <StatsCard
+                  title="Total Funds"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.totalFunds || 0)
+                  }
+                  icon={Wallet}
+                  description="Contributions + Donations + Penalties collected"
+                />
+                <StatsCard
+                  title="Contributions Collected"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.contributionsCollected || 0)
+                  }
+                  icon={HandCoins}
+                  description="All paid contributions"
+                  valueClassName="text-green-600"
+                />
+                <StatsCard
+                  title="Penalties Collected"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.penaltiesCollected || 0)
+                  }
+                  icon={Receipt}
+                  description="All paid penalties"
+                  valueClassName="text-green-600"
+                />
+                <StatsCard
+                  title="Donations Received"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.donationsCollected || 0)
+                  }
+                  icon={Gift}
+                  description="All donations received"
+                  valueClassName="text-green-600"
+                />
+                <StatsCard
+                  title="Total Expenses"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.expensesTotal || 0)
+                  }
+                  icon={TrendingDown}
+                  description="All recorded expenses"
+                  valueClassName="text-destructive"
+                />
+                <StatsCard
+                  title="Outstanding"
+                  value={
+                    treasurerStatsLoading
+                      ? "..."
+                      : formatPeso(treasurerStats?.totalOutstanding || 0)
+                  }
+                  icon={AlertCircle}
+                  description="Unpaid contributions + unpaid penalties"
+                  valueClassName="text-accent"
+                />
+              </div>
+
+              {/* Trend charts */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ContributionsTrendChart
+                  data={trendData || []}
+                  isLoading={trendLoading}
+                />
+                <PenaltiesTrendChart
+                  data={penaltiesTrendData || []}
+                  isLoading={penaltiesTrendLoading}
+                />
+              </div>
+
+              {/* Fund sources + cash flow */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <FundSourcesChart
+                  contributionsCollected={treasurerStats?.contributionsCollected || 0}
+                  penaltiesCollected={treasurerStats?.penaltiesCollected || 0}
+                  donationsCollected={treasurerStats?.donationsCollected || 0}
+                  isLoading={treasurerStatsLoading}
+                />
+                <CashFlowTrendChart
+                  data={cashFlowData || []}
+                  isLoading={cashFlowLoading}
+                />
+              </div>
+            </>
+          );
+        }
+
         return (
           <>
             {/* Header */}

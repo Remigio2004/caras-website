@@ -56,7 +56,13 @@ import {
   CheckSquare,
   X,
   Trash2,
+  Download,
 } from "lucide-react";
+import ContributionsExportPreviewDialog from "./ContributionsExportPreviewDialog";
+import type {
+  ContributionMemberRow,
+  ContributionPeriodColumn,
+} from "./ContributionsPrintLayout";
 
 interface Member {
   id: string;
@@ -148,6 +154,15 @@ export default function ContributionsView() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [bulkMarkPaidOpen, setBulkMarkPaidOpen] = useState(false);
+  const [bulkEditPaymentOpen, setBulkEditPaymentOpen] = useState(false);
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportPeriods, setExportPeriods] = useState<ContributionPeriodColumn[]>([]);
+  const [exportMembers, setExportMembers] = useState<ContributionMemberRow[]>([]);
+  const [exportTotals, setExportTotals] = useState<Record<string, number>>({});
+
+  const [deletePeriodOpen, setDeletePeriodOpen] = useState(false);
 
   // Periods, newest month first
   const { data: periods, isLoading: periodsLoading } = useQuery({
@@ -370,6 +385,48 @@ export default function ContributionsView() {
     },
   });
 
+  // Saves the paid_date + amount_paid for a single already-paid
+  // contribution WITHOUT flipping its status (unlike toggleStatusMutation,
+  // which is only meant for the explicit "Mark as unpaid" action).
+  const savePaymentMutation = useMutation({
+    mutationFn: async ({
+      contributionId,
+      paidDate,
+      amountPaid,
+    }: {
+      contributionId: string;
+      paidDate: string;
+      amountPaid: number;
+    }) => {
+      if (!canEdit) throw new Error("Not authorized");
+      const { error } = await supabase
+        .from("contributions")
+        .update({
+          status: "paid",
+          paid_date: paidDate,
+          amount_paid: amountPaid,
+        })
+        .eq("id", contributionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateAll();
+      setContributionToMarkPaid(null);
+      setPaidDateInput("");
+      setAmountPaidInput("");
+      toast({ title: "Payment saved" });
+    },
+    onError: (err) => {
+      console.error("save payment error:", err);
+      toast({
+        title: "Failed to save payment",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Bulk-revert selected contributions back to unpaid (clears paid_date +
   // amount_paid). No dialog needed since there's nothing to fill in.
   const bulkMarkUnpaidMutation = useMutation({
@@ -468,6 +525,87 @@ export default function ContributionsView() {
       console.error("bulk mark paid error:", err);
       toast({
         title: "Failed to mark as paid",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Overwrites paid_date + amount_paid for several ALREADY-PAID
+  // contributions at once, using a single date/amount for all of them.
+  // Status is intentionally left untouched (they're already "paid").
+  const bulkEditPaymentMutation = useMutation({
+    mutationFn: async ({
+      ids,
+      paidDate,
+      amountPaid,
+    }: {
+      ids: string[];
+      paidDate: string;
+      amountPaid: number;
+    }) => {
+      if (!canEdit) throw new Error("Not authorized");
+      if (!ids.length) throw new Error("No rows selected");
+      const { error } = await supabase
+        .from("contributions")
+        .update({
+          paid_date: paidDate,
+          amount_paid: amountPaid,
+        })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_data, { ids }) => {
+      invalidateAll();
+      toast({ title: `${ids.length} payment${ids.length !== 1 ? "s" : ""} updated` });
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+      setBulkEditPaymentOpen(false);
+      setPaidDateInput("");
+      setAmountPaidInput("");
+    },
+    onError: (err) => {
+      console.error("bulk edit payment error:", err);
+      toast({
+        title: "Failed to update payments",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Deletes every contribution row tied to this period first (foreign key),
+  // then the period itself. Falls back to the next available period after.
+  const deletePeriodMutation = useMutation({
+    mutationFn: async (periodId: string) => {
+      if (!canEdit) throw new Error("Not authorized");
+
+      const { error: contribError } = await supabase
+        .from("contributions")
+        .delete()
+        .eq("period_id", periodId);
+      if (contribError) throw contribError;
+
+      const { error: periodError } = await supabase
+        .from("contribution_periods")
+        .delete()
+        .eq("id", periodId);
+      if (periodError) throw periodError;
+    },
+    onSuccess: (_data, periodId) => {
+      invalidateAll();
+      toast({ title: "Period deleted" });
+      setDeletePeriodOpen(false);
+      if (selectedPeriodId === periodId) {
+        setSelectedPeriodId(null);
+      }
+    },
+    onError: (err) => {
+      console.error("delete period error:", err);
+      toast({
+        title: "Failed to delete period",
         description:
           err instanceof Error ? err.message : "Something went wrong.",
         variant: "destructive",
@@ -593,6 +731,29 @@ export default function ContributionsView() {
     setAmountPaidInput(String(contribution.amount_paid ?? "0"));
   };
 
+  // Opens the bulk Edit Payment dialog for the current selection. Every
+  // selected row must already be "paid" — if any unpaid row is included,
+  // this blocks with an error instead of silently skipping it.
+  const openBulkEditPaymentDialog = () => {
+    const selected = filteredContributions.filter((c) => selectedIds.has(c.id));
+    if (selected.length === 0) return;
+
+    const hasUnpaid = selected.some((c) => c.status !== "paid");
+    if (hasUnpaid) {
+      toast({
+        title: "May unpaid sa selection",
+        description:
+          "Paid records lang ang puwedeng i-edit. Alisin muna sa selection ang mga unpaid member.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPaidDateInput(toDatetimeLocalValue(new Date().toISOString()));
+    setAmountPaidInput(String(selectedPeriod?.amount_due ?? "0"));
+    setBulkEditPaymentOpen(true);
+  };
+
   const handlePeriodSubmit = () => {
     if (!periodForm.label.trim() || !periodForm.period_month) {
       toast({
@@ -611,6 +772,88 @@ export default function ContributionsView() {
 
   const isSavingPeriod =
     addPeriodMutation.isPending || updatePeriodMutation.isPending;
+
+  // Pulls EVERY period + EVERY contribution (not just the currently
+  // selected period) and pivots them into a member-rows x period-columns
+  // table for the PDF export.
+  const handleExportClick = async () => {
+    setIsExporting(true);
+    try {
+      const { data: allPeriods, error: periodsError } = await supabase
+        .from("contribution_periods")
+        .select("*")
+        .order("period_month", { ascending: true });
+      if (periodsError) throw periodsError;
+
+      const { data: allContributions, error: contributionsError } =
+        await supabase
+          .from("contributions")
+          .select("*, members(full_name)");
+      if (contributionsError) throw contributionsError;
+
+      const rows = (allContributions || []) as unknown as Contribution[];
+      const periodRows = (allPeriods || []) as Period[];
+
+      if (periodRows.length === 0 || rows.length === 0) {
+        toast({
+          title: "No data",
+          description: "Wala pang periods o contributions na ma-e-export.",
+        });
+        return;
+      }
+
+      const columns: ContributionPeriodColumn[] = periodRows.map((p) => ({
+        id: p.id,
+        label: format(new Date(p.meeting_date || p.period_month), "MMM d, yyyy"),
+      }));
+
+      const memberMap = new Map<string, string>();
+      rows.forEach((c) => {
+        if (c.member_id && c.members?.full_name) {
+          memberMap.set(c.member_id, c.members.full_name);
+        }
+      });
+
+      const memberRows: ContributionMemberRow[] = Array.from(
+        memberMap.entries()
+      )
+        .map(([member_id, full_name]) => {
+          const cells: ContributionMemberRow["cells"] = {};
+          rows
+            .filter((c) => c.member_id === member_id)
+            .forEach((c) => {
+              cells[c.period_id] = {
+                status: c.status,
+                amount: c.amount_paid,
+              };
+            });
+          return { member_id, full_name, cells };
+        })
+        .sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+      const totals: Record<string, number> = {};
+      periodRows.forEach((p) => {
+        totals[p.id] = rows
+          .filter((c) => c.period_id === p.id && c.status === "paid")
+          .reduce((sum, c) => sum + Number(c.amount_paid || 0), 0);
+      });
+
+      setExportPeriods(columns);
+      setExportMembers(memberRows);
+      setExportTotals(totals);
+      setExportOpen(true);
+    } catch (err) {
+      console.error("export error:", err);
+      toast({
+        title: "Export error",
+        description:
+          err instanceof Error ? err.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 h-[90vh] flex flex-col">
@@ -696,6 +939,15 @@ export default function ContributionsView() {
                     Edit Period
                   </DropdownMenuItem>
                 )}
+                {selectedPeriod && (
+                  <DropdownMenuItem
+                    onClick={() => setDeletePeriodOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Period
+                  </DropdownMenuItem>
+                )}
                 {selectedPeriod && (contributions || []).length > 0 && (
                   <>
                     <DropdownMenuSeparator />
@@ -705,6 +957,14 @@ export default function ContributionsView() {
                     </DropdownMenuItem>
                   </>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleExportClick}
+                  disabled={isExporting}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {isExporting ? "Preparing..." : "Export"}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -762,6 +1022,18 @@ export default function ContributionsView() {
                 disabled={selectedIds.size === 0}
               >
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
+              </Button>
+
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                title="Edit Payment"
+                onClick={openBulkEditPaymentDialog}
+                disabled={selectedIds.size === 0}
+              >
+                <Pencil className="w-4 h-4" />
               </Button>
 
               <Button
@@ -1169,16 +1441,16 @@ export default function ContributionsView() {
                     });
                     return;
                   }
-                  toggleStatusMutation.mutate({
-                    contribution: contributionToMarkPaid,
+                  savePaymentMutation.mutate({
+                    contributionId: contributionToMarkPaid.id,
                     paidDate: new Date(paidDateInput).toISOString(),
                     amountPaid: Number(amountPaidInput) || 0,
                   });
                 }}
-                disabled={toggleStatusMutation.isPending}
+                disabled={savePaymentMutation.isPending}
                 className="w-full sm:w-auto"
               >
-                {toggleStatusMutation.isPending ? "Saving..." : "Save"}
+                {savePaymentMutation.isPending ? "Saving..." : "Save"}
               </Button>
             </div>
           </DialogContent>
@@ -1262,6 +1534,125 @@ export default function ContributionsView() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Bulk edit payment dialog — single date/amount applied to every
+          selected PAID contribution, status untouched */}
+      {canEdit && (
+        <Dialog
+          open={bulkEditPaymentOpen}
+          onOpenChange={(open) => {
+            setBulkEditPaymentOpen(open);
+            if (!open) {
+              setPaidDateInput("");
+              setAmountPaidInput("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-sm sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit {selectedIds.size} Payment{selectedIds.size !== 1 ? "s" : ""}</DialogTitle>
+              <DialogDescription>
+                Ilalapat ang parehong halaga at petsa/oras sa lahat ng{" "}
+                {selectedIds.size} napiling paid members. Hindi magbabago ang
+                status nila.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium mb-1">
+                  Amount Paid (₱) — kada member
+                </p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amountPaidInput}
+                  onChange={(e) => setAmountPaidInput(e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-medium mb-1">Paid Date &amp; Time</p>
+                <Input
+                  type="datetime-local"
+                  value={paidDateInput}
+                  onChange={(e) => setPaidDateInput(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setBulkEditPaymentOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!paidDateInput) {
+                    toast({
+                      title: "Missing date",
+                      description: "Ilagay ang petsa at oras ng pagbayad.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  bulkEditPaymentMutation.mutate({
+                    ids: Array.from(selectedIds),
+                    paidDate: new Date(paidDateInput).toISOString(),
+                    amountPaid: Number(amountPaidInput) || 0,
+                  });
+                }}
+                disabled={bulkEditPaymentMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {bulkEditPaymentMutation.isPending
+                  ? "Saving..."
+                  : `Save ${selectedIds.size} Payment${selectedIds.size !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete period confirmation */}
+      {canEdit && (
+        <AlertDialog open={deletePeriodOpen} onOpenChange={setDeletePeriodOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete "{selectedPeriod?.label}"?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Permanenteng mabubura ang period na ito pati na ang lahat ng
+                contribution records nito. Hindi na ito mababawi.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (selectedPeriod) {
+                    deletePeriodMutation.mutate(selectedPeriod.id);
+                  }
+                }}
+                disabled={deletePeriodMutation.isPending}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      <ContributionsExportPreviewDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        periods={exportPeriods}
+        members={exportMembers}
+        totals={exportTotals}
+      />
     </div>
   );
 }

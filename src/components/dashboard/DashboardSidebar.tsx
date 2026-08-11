@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Wallet,
   Coins,
+  PiggyBank,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,7 +29,7 @@ const navItems = [
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/dashboard",
-    roles: ["admin"],
+    roles: ["admin", "treasurer"],
   },
   {
     id: "applications",
@@ -77,6 +78,13 @@ const navItems = [
     label: "Penalties",
     icon: Wallet,
     path: "/dashboard?view=penalties",
+    roles: ["admin", "treasurer"],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    icon: PiggyBank,
+    path: "/dashboard?view=finance",
     roles: ["admin", "treasurer"],
   },
   {

@@ -57,7 +57,10 @@ import {
   MoreVertical,
   CheckSquare,
   X,
+  Download,
 } from "lucide-react";
+import PenaltiesExportPreviewDialog from "./PenaltiesExportPreviewDialog";
+import type { PenaltyExportRow } from "./PenaltiesPrintLayout";
 
 interface Member {
   id: string;
@@ -129,6 +132,7 @@ export default function PenaltiesView() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [bulkMarkPaidOpen, setBulkMarkPaidOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -184,6 +188,23 @@ export default function PenaltiesView() {
       .filter((p) => p.status === "paid")
       .reduce((sum, p) => sum + Number(p.penalty_amount), 0);
   }, [penalties]);
+
+  // Full, unfiltered list used for the PDF export — mirrors what the
+  // Contributions export does (exports everything, not just the current
+  // search/status filter).
+  const exportRows: PenaltyExportRow[] = useMemo(
+    () =>
+      (penalties || []).map((p) => ({
+        id: p.id,
+        full_name: p.members?.full_name || "—",
+        date_absent: p.date_absent,
+        reason: p.reason,
+        penalty_amount: Number(p.penalty_amount),
+        status: p.status,
+        paid_date: p.paid_date,
+      })),
+    [penalties]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredPenalties.length / PAGE_SIZE));
   const paginatedPenalties = filteredPenalties.slice(
@@ -422,6 +443,17 @@ export default function PenaltiesView() {
     setBulkMarkPaidOpen(true);
   };
 
+  const handleExportClick = () => {
+    if (exportRows.length === 0) {
+      toast({
+        title: "No data",
+        description: "Wala pang penalty records na ma-e-export.",
+      });
+      return;
+    }
+    setExportOpen(true);
+  };
+
   const toggleSelectMode = () => {
     setIsSelecting((prev) => {
       const next = !prev;
@@ -595,6 +627,11 @@ export default function PenaltiesView() {
                     </DropdownMenuItem>
                   </>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportClick}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -1137,6 +1174,13 @@ export default function PenaltiesView() {
           </DialogContent>
         </Dialog>
       )}
+
+      <PenaltiesExportPreviewDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        rows={exportRows}
+        totals={{ unpaid: totalUnpaidAmount, paid: totalPaidAmount }}
+      />
     </div>
   );
 }
