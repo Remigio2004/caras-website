@@ -704,7 +704,7 @@ export default function ExpensesView() {
                 <Input
                   value={form.item_description}
                   onChange={(e) => setForm((f) => ({ ...f, item_description: e.target.value }))}
-                  placeholder="e.g. Sound system rental"
+                  placeholder="e.g. Food"
                 />
               </div>
               <div>

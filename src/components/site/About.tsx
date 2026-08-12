@@ -71,13 +71,9 @@ export default function About() {
           <div>
             <h2 className="text-3xl md:text-4xl font-display">About CARAS</h2>
             <p className="mt-4 text-muted-foreground text-justify">
-              Rooted in Augustinian Recollect spirituality,&nbsp;
-              <strong>
-                Confraternity of Augustinian Recollect Altar Server (CARAS)
-              </strong>
-              &nbsp;serves the liturgy with reverence and dignity. Our members
-              are formed to love the Eucharist, grow in community, and witness
-              to Christ through service.
+                <strong>Confraternity of Augustinian Recollect Altar Servers de San Sebastian</strong> is a united community of altar servers formed by prayer, learning, community, and reverent service at the altar. 
+                Inspired by the charism of St. Augustine and the spirit of Recollection, we help young people grow closer to Jesus, serve with humility and gladness, 
+                and become faithful witnesses of the Gospel in the Church and in daily life. 
             </p>
 
             {/* Mission / Vision */}
@@ -87,13 +83,13 @@ export default function About() {
                 style={{ borderColor: "hsl(var(--brand-gold))" }}
               >
                 <h3 className="font-semibold">Mission</h3>
-                <p className="text-sm text-muted-foreground">
-                  CARAS de San Sebastian forms altar servers who live the
-                  Augustinian Recollect spirit by praying and growing closer to
-                  God, building a loving and united community, serving at the
-                  altar with humility and joy, continually learning about their
-                  faith and vocation, and showing Christ’s love through simple,
-                  pure, and compassionate lives.
+                <p className="text-sm text-muted-foreground text-justify">
+                 CARAS de San Sebastian lives its vocation 
+                 to proclaim Christ and bring people closer to Him. Seeking first the Kingdom of 
+                 God and His righteousness, CARAS forms altar servers through the charism of St. Augustine 
+                 and the spirit of Recollection. Through prayer, learning, community, and service at the altar, 
+                 we help our members grow closer to God, serve with humility and gladness, and witness to Christ’s 
+                 love through simple, pure, and compassionate lives. 
                 </p>
               </div>
               <div
@@ -102,12 +98,10 @@ export default function About() {
               >
                 <h3 className="font-semibold">Vision</h3>
                 <p className="text-sm text-muted-foreground">
-                  CARAS de San Sebastian dreams of a community of altar servers
-                  who follow the Augustinian Recollect spirit—united, prayerful,
-                  loving, and ready to serve. Inspired by the Order’s example,
-                  we aim to guide young people toward holiness by teaching them
-                  to pray, live simply, and joyfully serve the Church and God’s
-                  people
+                  CARAS de San Sebastian envisions a united and well-formed community of altar 
+                  servers who grow close to Jesus, ready to serve with humility and gladness, 
+                  live the Augustinian Recollect spirit, and witness to the Gospel in the 
+                  Church and in daily life. 
                 </p>
               </div>
             </div>
