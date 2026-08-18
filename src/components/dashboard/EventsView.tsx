@@ -44,12 +44,18 @@ interface Event {
   banner_url: string | null;
   narrative_image_url: string | null;
   narrative_images: string[] | null;
+  photo_credit: string | null;
   featured: boolean;
   narrative: string | null;
   created_at: string;
 }
 
 const PAGE_SIZE = 5;
+
+// Every event now uses the same fixed banner image — no longer editable
+// per event.
+const STATIC_BANNER_URL =
+  "https://djhvuzznfszzwckybkqa.supabase.co/storage/v1/object/public/gallery/uploads/hero-img%20-%20Copy.jpg";
 
 export default function EventsView() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -89,8 +95,9 @@ export default function EventsView() {
         title: formData.get("title") as string,
         date: formData.get("date") as string,
         summary: (formData.get("summary") as string) || null,
-        banner_url: (formData.get("banner_url") as string) || null,
+        banner_url: STATIC_BANNER_URL,
         narrative_images: images,
+        photo_credit: (formData.get("photo_credit") as string) || null,
         featured: formData.get("featured") === "true",
         narrative: (formData.get("narrative") as string) || null,
       };
@@ -190,8 +197,9 @@ export default function EventsView() {
           title: formData.get("title") as string,
           date: formData.get("date") as string,
           summary: (formData.get("summary") as string) || null,
-          banner_url: (formData.get("banner_url") as string) || null,
+          banner_url: STATIC_BANNER_URL,
           narrative_images: filteredImages,
+          photo_credit: (formData.get("photo_credit") as string) || null,
           featured: formData.get("featured") === "true",
           narrative: (formData.get("narrative") as string) || null,
         },
@@ -285,13 +293,12 @@ export default function EventsView() {
                 {/* Right column */}
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="banner_url">Banner URL</Label>
+                    <Label htmlFor="photo_credit">Photo Credit</Label>
                     <Input
-                      id="banner_url"
-                      name="banner_url"
-                      type="url"
-                      placeholder="https://..."
-                      defaultValue={editingEvent?.banner_url || ""}
+                      id="photo_credit"
+                      name="photo_credit"
+                      placeholder="e.g. Photo by Juan Dela Cruz"
+                      defaultValue={editingEvent?.photo_credit || ""}
                     />
                   </div>
 

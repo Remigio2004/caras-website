@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ type Event = {
   banner_url: string | null;
   narrative_image_url: string | null;
   narrative_images: string[] | null;
+  photo_credit: string | null;
   narrative: string | null;
 };
 
@@ -33,7 +34,7 @@ export default function EventNarrativePage() {
       const { data, error } = await supabase
         .from("events")
         .select(
-          "id,title,date,summary,banner_url,narrative_image_url,narrative_images,narrative"
+          "id,title,date,summary,banner_url,narrative_image_url,narrative_images,photo_credit,narrative"
         )
         .eq("id", id)
         .maybeSingle();
@@ -69,6 +70,32 @@ export default function EventNarrativePage() {
       : null;
 
   const [imageIndex, setImageIndex] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchDeltaXRef = useRef(0);
+
+  const handleSwipeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    touchStartXRef.current = e.clientX;
+    touchDeltaXRef.current = 0;
+    setIsDragging(true);
+  };
+
+  const handleSwipeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (touchStartXRef.current === null) return;
+    touchDeltaXRef.current = e.clientX - touchStartXRef.current;
+  };
+
+  const handleSwipeEnd = (imagesLength: number) => {
+    const SWIPE_THRESHOLD = 50;
+    if (touchDeltaXRef.current > SWIPE_THRESHOLD) {
+      setImageIndex((prev) => Math.max(0, prev - 1));
+    } else if (touchDeltaXRef.current < -SWIPE_THRESHOLD) {
+      setImageIndex((prev) => Math.min(imagesLength - 1, prev + 1));
+    }
+    touchStartXRef.current = null;
+    touchDeltaXRef.current = 0;
+    setIsDragging(false);
+  };
 
   useEffect(() => {
     setImageIndex(0);
@@ -158,11 +185,29 @@ export default function EventNarrativePage() {
 
             return (
               <div className="mt-8 w-full flex flex-col items-center">
-                <img
-                  src={images[imageIndex] ?? images[0]}
-                  alt={event.title}
-                  className="max-h-[400px] w-auto object-contain rounded-md shadow-sm"
-                />
+                <div
+                  className={`select-none ${
+                    isDragging ? "cursor-grabbing" : images.length > 1 ? "cursor-grab" : ""
+                  }`}
+                  style={{ touchAction: "pan-y" }}
+                  onPointerDown={handleSwipeStart}
+                  onPointerMove={handleSwipeMove}
+                  onPointerUp={() => handleSwipeEnd(images.length)}
+                  onPointerLeave={() => handleSwipeEnd(images.length)}
+                >
+                  <img
+                    src={images[imageIndex] ?? images[0]}
+                    alt={event.title}
+                    className="max-h-[400px] w-auto object-contain rounded-md shadow-sm pointer-events-none"
+                    draggable={false}
+                  />
+                </div>
+
+                {event.photo_credit && (
+                  <p className="mt-2 text-xs text-muted-foreground italic">
+                    {event.photo_credit}
+                  </p>
+                )}
 
                 {images.length > 1 && (
                   <div className="mt-4 flex items-center gap-2">

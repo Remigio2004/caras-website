@@ -102,7 +102,7 @@ export default function Events() {
                     className="px-0"
                     onClick={() => handleOpenNarrative(ev.id)}
                   >
-                    View narrative
+                    Read more »
                   </Button>
                 </div>
               </div>

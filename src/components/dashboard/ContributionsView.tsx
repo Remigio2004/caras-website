@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -164,6 +165,26 @@ export default function ContributionsView() {
 
   const [deletePeriodOpen, setDeletePeriodOpen] = useState(false);
 
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [memberSearchTerm, setMemberSearchTerm] = useState("");
+
+  // Full member list, used to build the checklist when creating a new
+  // period — lets the treasurer pick exactly who this period applies to
+  // instead of auto-including everyone.
+  const { data: allMembers } = useQuery({
+    queryKey: ["all-members-for-period"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("members")
+        .select("id, full_name")
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      return (data || []) as Member[];
+    },
+  });
+
   // Periods, newest month first
   const { data: periods, isLoading: periodsLoading } = useQuery({
     queryKey: ["contribution-periods"],
@@ -248,7 +269,9 @@ export default function ContributionsView() {
   // Create a new period, then auto-generate one "unpaid" contribution row
   // per active member so the treasurer has a ready checklist to work from.
   const addPeriodMutation = useMutation({
-    mutationFn: async (payload: typeof emptyPeriodForm) => {
+    mutationFn: async (
+      payload: typeof emptyPeriodForm & { memberIds: string[] }
+    ) => {
       if (!canEdit) throw new Error("Not authorized");
       const { data: period, error: periodError } = await supabase
         .from("contribution_periods")
@@ -265,15 +288,10 @@ export default function ContributionsView() {
         .single();
       if (periodError) throw periodError;
 
-      const { data: members, error: membersError } = await supabase
-        .from("members")
-        .select("id");
-      if (membersError) throw membersError;
-
-      if (members && members.length > 0) {
-        const rows = members.map((m) => ({
+      if (payload.memberIds.length > 0) {
+        const rows = payload.memberIds.map((memberId) => ({
           period_id: period.id,
-          member_id: m.id,
+          member_id: memberId,
           status: "unpaid" as const,
           created_by: user?.id || null,
         }));
@@ -291,6 +309,8 @@ export default function ContributionsView() {
       toast({ title: "Period added" });
       setPeriodFormOpen(false);
       setPeriodForm(emptyPeriodForm);
+      setSelectedMemberIds(new Set());
+      setMemberSearchTerm("");
     },
     onError: (err) => {
       console.error("add period error:", err);
@@ -619,6 +639,8 @@ export default function ContributionsView() {
       ...emptyPeriodForm,
       amount_due: selectedPeriod ? String(selectedPeriod.amount_due) : "0",
     });
+    setSelectedMemberIds(new Set());
+    setMemberSearchTerm("");
     setPeriodFormOpen(true);
   };
 
@@ -763,10 +785,22 @@ export default function ContributionsView() {
       });
       return;
     }
+    if (!editingPeriod && selectedMemberIds.size === 0) {
+      toast({
+        title: "Walang napiling member",
+        description:
+          "Pumili ng kahit isang member na isasama sa period na ito.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (editingPeriod) {
       updatePeriodMutation.mutate({ id: editingPeriod.id, ...periodForm });
     } else {
-      addPeriodMutation.mutate(periodForm);
+      addPeriodMutation.mutate({
+        ...periodForm,
+        memberIds: Array.from(selectedMemberIds),
+      });
     }
   };
 
@@ -1276,6 +1310,8 @@ export default function ContributionsView() {
             if (!open) {
               setEditingPeriod(null);
               setPeriodForm(emptyPeriodForm);
+              setSelectedMemberIds(new Set());
+              setMemberSearchTerm("");
             }
           }}
         >
@@ -1346,6 +1382,76 @@ export default function ContributionsView() {
                   }
                 />
               </div>
+              {!editingPeriod && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-medium">
+                      Members ({selectedMemberIds.size} of{" "}
+                      {(allMembers || []).length} selected)
+                    </p>
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => {
+                        if (
+                          selectedMemberIds.size ===
+                            (allMembers || []).length &&
+                          (allMembers || []).length > 0
+                        ) {
+                          setSelectedMemberIds(new Set());
+                        } else {
+                          setSelectedMemberIds(
+                            new Set((allMembers || []).map((m) => m.id))
+                          );
+                        }
+                      }}
+                    >
+                      {selectedMemberIds.size === (allMembers || []).length &&
+                      (allMembers || []).length > 0
+                        ? "Clear all"
+                        : "Select all"}
+                    </button>
+                  </div>
+                  <Input
+                    placeholder="Search member"
+                    value={memberSearchTerm}
+                    onChange={(e) => setMemberSearchTerm(e.target.value)}
+                    className="mb-2"
+                  />
+                  <div className="border rounded-md max-h-40 overflow-y-auto p-2 space-y-1">
+                    {(allMembers || [])
+                      .filter((m) =>
+                        m.full_name
+                          .toLowerCase()
+                          .includes(memberSearchTerm.trim().toLowerCase())
+                      )
+                      .map((m) => (
+                        <label
+                          key={m.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer py-0.5"
+                        >
+                          <Checkbox
+                            checked={selectedMemberIds.has(m.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedMemberIds((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(m.id);
+                                else next.delete(m.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          {m.full_name}
+                        </label>
+                      ))}
+                    {(allMembers || []).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Walang members.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
                 <Button
                   variant="outline"
